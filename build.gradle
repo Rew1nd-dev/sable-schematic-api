@@ -95,6 +95,11 @@ repositories {
     }
 
     maven {
+        name = 'FirstDark Snapshots'
+        url = 'https://maven.firstdark.dev/snapshots'
+    }
+
+    maven {
         name = 'TheIllusiveC4'
         url = 'https://maven.theillusivec4.top/'
     }
@@ -218,6 +223,9 @@ dependencies {
     // Loads Sable itself in NeoForge dev runs without leaking it as a published transitive dependency.
     localRuntime("dev.ryanhcode.sable:sable-neoforge-${project.minecraft_version}:${project.sable_version}")
 
+    // UI layer for the external blueprint tool item. Keep LDLib2 usage out of the blueprint API package.
+    implementation("com.lowdragmc.ldlib2:ldlib2-neoforge-${project.minecraft_version}:${project.ldlib2_version}:all")
+
     // Optional compatibility targets for blueprint mapper experiments.
     compileOnly("com.simibubi.create:create-${project.minecraft_version}:${project.create_version}") {
         transitive = false
@@ -250,6 +258,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             mod_license            : mod_license,
             mod_version            : mod_version,
             sable_version_range    : sable_version_range,
+            ldlib2_mod_version     : ldlib2_mod_version,
             create_version_range   : create_version_range,
             simulated_project_version_range: simulated_project_version_range,
     ]
@@ -280,6 +289,11 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+tasks.named('javadoc', Javadoc).configure {
+    include 'dev/rew1nd/sableschematicapi/api/blueprint/**'
+    options.encoding = 'UTF-8'
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

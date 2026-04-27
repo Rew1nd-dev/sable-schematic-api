@@ -1,78 +1,120 @@
 # Sable Schematic API
 
-这是一个 Sable schematic / blueprint API 的外置实验 mod。目标是先让其他 mod 以较小依赖的形式接入、测试 remapper 和蓝图放置流程，等 API 边界稳定后，再把适合进入核心的部分 PR 回 Sable 上游。
+Sable Schematic API 是一个面向 [Sable](https://github.com/ryanhcode/sable) sub-level 的 blueprint / schematic 外置实验 mod。它把蓝图保存、加载、引用 remap、兼容层 sidecar 和一个轻量的游戏内蓝图工具放在独立 mod 中验证，等 API 边界稳定后，再把适合进入核心的部分整理回 Sable 上游。
 
-## 依赖关系
+当前版本仍是 `0.1.0` 草案 API：适合兼容性验证和小范围使用，但不承诺长期二进制稳定。
 
-Sable 按 `E:\GitHub\sable\wiki\Home.md` 中的方式从 RyanHCode Maven 获取：
+## 功能
 
-```groovy
-repositories {
-    exclusiveContent {
-        forRepository {
-            maven {
-                url = "https://maven.ryanhcode.dev/releases"
-                name = "RyanHCode Maven"
-            }
-        }
-        filter {
-            includeGroup("dev.ryanhcode.sable")
-            includeGroup("dev.ryanhcode.sable-companion")
-        }
-    }
-}
+- 保存并加载 Sable sub-level 蓝图。
+- 保存方块、方块实体、普通实体和 Create contraption entity。
+- 提供 block mapper、entity mapper 和 global blueprint event 三类兼容扩展点。
+- 提供 OP 命令保存/加载蓝图。
+- 提供 LDLib2 驱动的 `sable_schematic_api:blueprint_tool` 游戏内工具。
+- Create 兼容：
+  - remap contraption entity 的 `Contraption.Anchor`。
+  - 通过 sidecar 保存并恢复 Super Glue。
+- Simulated Project 兼容：
+  - 保存并恢复 swivel-bearing 与 plate 的连接关系。
+  - 保存并恢复 rope-winch / rope-connector 的 rope strand。
+  - 跳过临时的 launched plunger entity，避免蓝图保存无效运行态。
 
-dependencies {
-    compileOnlyApi("dev.ryanhcode.sable:sable-common-${project.minecraft_version}:${project.sable_version}")
-    localRuntime("dev.ryanhcode.sable:sable-neoforge-${project.minecraft_version}:${project.sable_version}")
-}
-```
+## 版本与依赖
 
-当前必要依赖：
+必要运行依赖：
 
-- Sable `1.1.3+`
 - Minecraft `1.21.1`
 - NeoForge `21.1.226+`
+- Sable `1.1.3+`
+- LDLib2 `2.2.6+`
 
-当前兼容性依赖：
+可选兼容依赖：
 
-- Create: 默认启用为 `compileOnly` 和 `localRuntime`，用于后续编写并运行 Create remapper 测试。
-- Simulated Project: 默认启用，依赖来源是本项目内的 `libs\create-aeronautics-1.1.3.jar`。
+- Create `6.0.10+`
+- Simulated Project `1.1.3+`
 
-`libs\create-aeronautics-1.1.3.jar` 是 bundled jar，外层本身不暴露 `simulated`、`aeronautics`、`offroad` 的 class。为了让 Java 编译、IDE、mixin 和 remapper 注册都能看到真实类型，构建会通过 `extractCreateAeronauticsModules` 任务把 `META-INF/jarjar/*.jar` 解到 `build/compat/create-aeronautics-1.1.3/`，再把解出的三个真实 NeoForge mod jar 加入 `compileOnly` 和 `localRuntime`。
+只有安装对应可选 mod 时，相关兼容 mapper 和 event 才会注册。
 
-注意：Sable common 只放在 `compileOnlyApi`，本地运行只放 `sable-neoforge`。不要同时把 `sable-common` 和 `sable-neoforge` 放进 runtime classpath，否则 Gradle 会因为二者都提供 `dev.ryanhcode.sable:sable` capability 而冲突；Veil common/neoforge 也会出现同类冲突。
+## 使用
 
-## 当前代码状态
+OP 命令：
 
-- 已迁移 Sable 本地草稿中的 `api/blueprint` 包。
-- 已迁移基础蓝图模型、导出、保存、读取、放置实现。
-- 已把包名改为 `dev.rew1nd.sableschematicapi`。
-- 已移除 NeoForge MDK 示例方块、物品、配置和 `examplemod` 资源。
-- `mods.toml` 中 Sable 是 required dependency，Create 和 Simulated 是 optional dependency。
-- 默认开发 classpath 已包含 Create，以及从 Create Aeronautics bundled jar 解出的 `simulated`、`aeronautics`、`offroad` 模块 jar，后续可以直接添加兼容 mapper 包。
-- 已注册独立测试命令，不再改动 Sable 本体命令树。
+```text
+/sablebp save <pos> <radius> <name>
+/sablebp load <name>
+/sable_schematic_api save <pos> <radius> <name>
+/sable_schematic_api load <name>
+```
 
-测试命令：
+命令保存的蓝图位于世界目录下的 `sable_blueprints/<name>.nbt`。
 
-- `/sablebp save <pos> <radius> <name>`
-- `/sablebp load <name>`
-- `/sable_schematic_api save <pos> <radius> <name>`
-- `/sable_schematic_api load <name>`
+游戏内工具：
 
-## 构建验证
+```text
+/give @p sable_schematic_api:blueprint_tool
+```
 
-当前默认配置已通过：
+- 手持工具左键依次选择 start / end。
+- Shift + 左键清除当前选择和待加载蓝图。
+- Tab 打开蓝图工具 UI。
+- Save 会把选区导出为客户端本地 `Sable-Schematics/<name>.nbt`。
+- 在 UI 中选择本地蓝图后，右键会把蓝图上传到服务器并放置到视线目标位置。
+
+工具保存/加载同样要求玩家拥有 OP 权限，并且必须手持蓝图工具。
+
+## Build Prerequisites
+
+- JDK 21。
+- Git。
+- Gradle wrapper 文件已随仓库提供，干净克隆后可直接使用 `./gradlew` 或 `./gradlew.bat`。
+- 从 Simulated-Project release 下载 `create-aeronautics-1.1.3.jar` 到本项目的 `libs/` 目录：
+
+```text
+libs/create-aeronautics-1.1.3.jar
+```
+
+这个 jar 只用于本地编译和运行 Simulated Project 兼容代码。它不是本项目源码的一部分，也不应被打包进本项目发布 jar。
+
+构建：
 
 ```powershell
 ./gradlew.bat build
 ```
 
-默认构建会启用 Sable、Create 和解包后的 Create Aeronautics 模块兼容 classpath。
+生成 Javadoc：
 
-## 下一步
+```powershell
+./gradlew.bat javadoc
+```
 
-- 为 Create 注册首批 `SableBlueprintBlockMapper`，验证常见 block entity NBT remap。
-- 为 Simulated Project 注册首批 `SableBlueprintBlockMapper`，测试 block entity / UUID / 连接关系 remap。
-- 补充实体 payload、旋转/镜像、跨 sub-level 引用修正的验证用例。
-- 根据实际 remapper 使用情况收敛 API 名称、阶段、session 暴露面和格式版本。
+## 开发者入口
+
+公共 API 位于：
+
+```text
+dev.rew1nd.sableschematicapi.api.blueprint
+```
+
+主要扩展点：
+
+- `SableBlueprintBlockMapper`：修改或清理方块实体 NBT，并在加载后恢复运行态。
+- `SableBlueprintEntityMapper`：修改、跳过或恢复实体 NBT。
+- `SableBlueprintEvent`：为跨方块、跨实体或外部管理器状态保存 global sidecar。
+- `BlueprintSaveSession` / `BlueprintPlaceSession`：提供蓝图内部引用、sub-level UUID 映射、block pos 映射和 UUID 分配。
+
+当前开发者文档优先维护在源码 Javadoc 中，避免草案阶段的外部文档与 API 漂移。
+
+## 已知限制
+
+- 当前蓝图主要保存 Sable sub-level 内部内容，不把普通 root world blocks 纳入同一引用映射。
+- 旋转和镜像尚未作为公开能力承诺；现有 compat 主要按整体平移处理。
+- Blueprint NBT 格式当前为 v1，不支持旧的 legacy plot payload。
+- 可选 mod 的 compat 依赖对应版本的运行时 NBT / API 结构，后续可能随上游变化调整。
+
+## 许可
+
+除非另有说明，本仓库源码采用 [PolyForm Shield License 1.0.0](LICENSE.md)。
+
+你可以在非竞争性场景中使用、分发、打包到 modpack、作为服务端依赖或开发依赖使用本 mod。不要把本项目改名后作为替代品重新发布，不要冒充 Sable、Sable Schematic API 或其官方兼容版本。
+
+第三方依赖和本地 `libs/` 中的 jar 不属于本项目源码许可覆盖范围，请遵循它们各自的许可证和发布条款。

@@ -134,6 +134,40 @@ public class SableBlueprint {
         }
     }
 
+    public record EntityData(Vector3dc localPos, CompoundTag tag) {
+        public EntityData {
+            localPos = new Vector3d(localPos);
+            tag = tag.copy();
+        }
+
+        private CompoundTag save() {
+            final CompoundTag wrapper = new CompoundTag();
+            wrapper.put("local_pos", SableNBTUtils.writeVector3d(this.localPos));
+            wrapper.put("entity", this.tag.copy());
+            return wrapper;
+        }
+
+        private static EntityData load(final CompoundTag wrapper) {
+            if (wrapper.contains("entity", Tag.TAG_COMPOUND)) {
+                return new EntityData(
+                        SableNBTUtils.readVector3d(wrapper.getCompound("local_pos")),
+                        wrapper.getCompound("entity")
+                );
+            }
+
+            return new EntityData(readEntityPos(wrapper), wrapper);
+        }
+
+        private static Vector3d readEntityPos(final CompoundTag tag) {
+            final ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
+            if (pos.size() >= 3) {
+                return new Vector3d(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
+            }
+
+            return new Vector3d();
+        }
+    }
+
     public record SubLevelData(int id,
                                UUID sourceUuid,
                                Pose3d relativePose,
@@ -142,7 +176,7 @@ public class SableBlueprint {
                                List<BlockState> blockPalette,
                                List<BlockData> blocks,
                                List<CompoundTag> blockEntities,
-                               List<CompoundTag> entities,
+                               List<EntityData> entities,
                                CompoundTag extraData,
                                @Nullable String name) {
         public SubLevelData {
@@ -152,7 +186,9 @@ public class SableBlueprint {
             blockPalette = List.copyOf(blockPalette);
             blocks = List.copyOf(blocks);
             blockEntities = blockEntities.stream().map(CompoundTag::copy).toList();
-            entities = entities.stream().map(CompoundTag::copy).toList();
+            entities = entities.stream()
+                    .map(entity -> new EntityData(entity.localPos(), entity.tag()))
+                    .toList();
             extraData = extraData.copy();
         }
 
@@ -181,8 +217,8 @@ public class SableBlueprint {
                 blockEntitiesTag.add(blockEntity.copy());
             }
 
-            for (final CompoundTag entity : this.entities) {
-                entitiesTag.add(entity.copy());
+            for (final EntityData entity : this.entities) {
+                entitiesTag.add(entity.save());
             }
 
             tag.put("block_palette", paletteTag);
@@ -205,7 +241,7 @@ public class SableBlueprint {
             final List<BlockState> blockPalette = new ObjectArrayList<>();
             final List<BlockData> blocks = new ObjectArrayList<>();
             final List<CompoundTag> blockEntities = new ObjectArrayList<>();
-            final List<CompoundTag> entities = new ObjectArrayList<>();
+            final List<EntityData> entities = new ObjectArrayList<>();
 
             final ListTag paletteTag = tag.getList("block_palette", Tag.TAG_COMPOUND);
             for (int i = 0; i < paletteTag.size(); i++) {
@@ -224,7 +260,7 @@ public class SableBlueprint {
 
             final ListTag entitiesTag = tag.getList("entities", Tag.TAG_COMPOUND);
             for (int i = 0; i < entitiesTag.size(); i++) {
-                entities.add(entitiesTag.getCompound(i).copy());
+                entities.add(EntityData.load(entitiesTag.getCompound(i)));
             }
 
             final String name = tag.contains("name", Tag.TAG_STRING) ? tag.getString("name") : null;

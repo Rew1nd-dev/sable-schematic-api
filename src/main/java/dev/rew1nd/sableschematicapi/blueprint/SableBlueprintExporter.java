@@ -2,6 +2,7 @@ package dev.rew1nd.sableschematicapi.blueprint;
 
 import dev.ryanhcode.sable.Sable;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockSaveContext;
+import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintEntitySaveContext;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintSaveSession;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintSavePhase;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintEventRegistry;
@@ -11,6 +12,7 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3d;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
 import dev.ryanhcode.sable.companion.math.Pose3d;
+import dev.ryanhcode.sable.api.sublevel.KinematicContraption;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
 import dev.ryanhcode.sable.util.LevelAccelerator;
@@ -20,8 +22,11 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
@@ -31,6 +36,8 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class SableBlueprintExporter {
+    private static final double ENTITY_SEARCH_INFLATE = 2.0;
+
     private SableBlueprintExporter() {
     }
 
@@ -39,6 +46,24 @@ public final class SableBlueprintExporter {
                 origin.x - radius, origin.y - radius, origin.z - radius,
                 origin.x + radius, origin.y + radius, origin.z + radius
         );
+        return export(level, origin, rootBounds);
+    }
+
+    public static SableBlueprint export(final ServerLevel level, final Vec3 start, final Vec3 end) {
+        final BlockPos startBlock = BlockPos.containing(start);
+        final BlockPos endBlock = BlockPos.containing(end);
+        final BoundingBox3d rootBounds = new BoundingBox3d(
+                Math.min(startBlock.getX(), endBlock.getX()),
+                Math.min(startBlock.getY(), endBlock.getY()),
+                Math.min(startBlock.getZ(), endBlock.getZ()),
+                Math.max(startBlock.getX(), endBlock.getX()) + 1.0,
+                Math.max(startBlock.getY(), endBlock.getY()) + 1.0,
+                Math.max(startBlock.getZ(), endBlock.getZ()) + 1.0
+        );
+        return export(level, start, rootBounds);
+    }
+
+    public static SableBlueprint export(final ServerLevel level, final Vec3 origin, final BoundingBox3d rootBounds) {
         final BlueprintSaveSession session = new BlueprintSaveSession(level, new Vector3d(origin.x, origin.y, origin.z), rootBounds);
         final List<SableBlueprint.SubLevelData> entries = new ObjectArrayList<>();
         final Set<UUID> seen = new ObjectOpenHashSet<>();
@@ -76,7 +101,8 @@ public final class SableBlueprintExporter {
         SableBlueprintEventRegistry.saveBeforeBlocks(session);
 
         session.setPhase(BlueprintSavePhase.SAVE_BLOCKS);
-        for (final SubLevelSaveFrame frame : session.frames()) {
+        final List<SubLevelSaveFrame> frames = session.frames();
+        for (final SubLevelSaveFrame frame : frames) {
             entries.add(saveSubLevel(session, frame, origin));
         }
 
@@ -84,6 +110,9 @@ public final class SableBlueprintExporter {
         SableBlueprintEventRegistry.saveAfterBlocks(session);
 
         session.setPhase(BlueprintSavePhase.SAVE_ENTITIES);
+        for (int i = 0; i < entries.size(); i++) {
+            entries.set(i, withEntities(entries.get(i), saveSubLevelEntities(session, frames.get(i))));
+        }
 
         session.setPhase(BlueprintSavePhase.AFTER_SAVE);
         SableBlueprintEventRegistry.saveAfterEntities(session);
@@ -151,6 +180,15 @@ public final class SableBlueprintExporter {
                         blockEntities.add(blockEntityTag.copy());
                     }
 
+                    session.recordSavedBlock(
+                            frame,
+                            storagePos,
+                            localPos,
+                            state,
+                            blockEntity,
+                            blockEntityDataId,
+                            blockEntityTag
+                    );
                     blocks.add(new SableBlueprint.BlockData(localPos, paletteId, blockEntityDataId));
                 }
             }
@@ -168,6 +206,94 @@ public final class SableBlueprintExporter {
                 List.of(),
                 new CompoundTag(),
                 frame.subLevel().getName()
+        );
+    }
+
+    private static List<SableBlueprint.EntityData> saveSubLevelEntities(final BlueprintSaveSession session,
+                                                                        final SubLevelSaveFrame frame) {
+        final List<SableBlueprint.EntityData> entities = new ObjectArrayList<>();
+        final Set<UUID> seenEntities = new ObjectOpenHashSet<>();
+        final BoundingBox3i bounds = frame.storageBounds();
+        final AABB aabb = new AABB(
+                bounds.minX(),
+                bounds.minY(),
+                bounds.minZ(),
+                bounds.maxX() + 1.0,
+                bounds.maxY() + 1.0,
+                bounds.maxZ() + 1.0
+        );
+
+        for (final Entity entity : session.level().getEntitiesOfClass(Entity.class, aabb.inflate(ENTITY_SEARCH_INFLATE), SableBlueprintExporter::shouldSaveEntity)) {
+            saveEntity(session, frame, entities, seenEntities, entity, true);
+        }
+
+        for (final KinematicContraption contraption : frame.subLevel().getPlot().getContraptions()) {
+            if (!contraption.sable$isValid() || !(contraption instanceof Entity entity)) {
+                continue;
+            }
+
+            saveEntity(session, frame, entities, seenEntities, entity, false);
+        }
+
+        return entities;
+    }
+
+    private static void saveEntity(final BlueprintSaveSession session,
+                                   final SubLevelSaveFrame frame,
+                                   final List<SableBlueprint.EntityData> entities,
+                                   final Set<UUID> seenEntities,
+                                   final Entity entity,
+                                   final boolean requireContainingSubLevel) {
+        if (!shouldSaveEntity(entity)) {
+            return;
+        }
+
+        if (requireContainingSubLevel && Sable.HELPER.getContaining(entity) != frame.subLevel()) {
+            return;
+        }
+
+        if (!seenEntities.add(entity.getUUID())) {
+            return;
+        }
+
+        final BlockPos origin = frame.blocksOrigin();
+        final Vector3d localPos = new Vector3d(
+                entity.getX() - origin.getX(),
+                entity.getY() - origin.getY(),
+                entity.getZ() - origin.getZ()
+        );
+        final BlueprintEntitySaveContext context = new BlueprintEntitySaveContext(session, frame, entity, localPos);
+        CompoundTag entityTag = new CompoundTag();
+        if (!entity.save(entityTag)) {
+            return;
+        }
+
+        entityTag = SableBlueprintMapperRegistry.saveEntity(context, entityTag);
+        if (entityTag == null || entityTag.isEmpty()) {
+            return;
+        }
+
+        entities.add(new SableBlueprint.EntityData(localPos, entityTag));
+    }
+
+    private static boolean shouldSaveEntity(final Entity entity) {
+        return !(entity instanceof Player) && !entity.isPassenger() && !entity.isRemoved();
+    }
+
+    private static SableBlueprint.SubLevelData withEntities(final SableBlueprint.SubLevelData entry,
+                                                            final List<SableBlueprint.EntityData> entities) {
+        return new SableBlueprint.SubLevelData(
+                entry.id(),
+                entry.sourceUuid(),
+                entry.relativePose(),
+                entry.localBounds(),
+                entry.blocksOrigin(),
+                entry.blockPalette(),
+                entry.blocks(),
+                entry.blockEntities(),
+                entities,
+                entry.extraData(),
+                entry.name()
         );
     }
 

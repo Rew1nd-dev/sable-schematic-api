@@ -3,8 +3,10 @@ package dev.rew1nd.sableschematicapi.blueprint;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockPlaceContext;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockRef;
+import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintEntityPlaceContext;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlacePhase;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession;
+import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlacedBlock;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintEventRegistry;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintMapperRegistry;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
@@ -20,7 +22,11 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -28,6 +34,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3d;
+import org.joml.Vector3dc;
 
 import java.util.List;
 import java.util.Map;
@@ -78,7 +85,16 @@ public final class SableBlueprintPlacer {
 
                     final LevelChunk chunk = level.getChunk(SectionPos.blockToSectionCoord(storagePos.getX()), SectionPos.blockToSectionCoord(storagePos.getZ()));
                     final BlockState oldState = chunk.setBlockState(storagePos, state, false);
-                    placedBlocks.add(new PlacedBlock(entry, block, subLevel, storagePos, state, oldState != null ? oldState : Blocks.AIR.defaultBlockState()));
+                    final BlueprintPlacedBlock placedBlock = session.recordPlacedBlock(
+                            entry.id(),
+                            entry.sourceUuid(),
+                            subLevel,
+                            block.localPos(),
+                            storagePos,
+                            state,
+                            block.blockEntityDataId()
+                    );
+                    placedBlocks.add(new PlacedBlock(entry, block, placedBlock, subLevel, storagePos, state, oldState != null ? oldState : Blocks.AIR.defaultBlockState()));
                 }
             }
         } finally {
@@ -97,6 +113,9 @@ public final class SableBlueprintPlacer {
         session.setPhase(BlueprintPlacePhase.AFTER_BLOCK_ENTITIES);
         session.runAfterBlockEntityTasks();
         SableBlueprintEventRegistry.placeAfterBlockEntities(session);
+
+        session.setPhase(BlueprintPlacePhase.PLACE_ENTITIES);
+        placeEntities(session, blueprint);
 
         session.setPhase(BlueprintPlacePhase.WORLD_UPDATES);
         notifyPlacedBlocks(level, placedBlocks);
@@ -193,6 +212,7 @@ public final class SableBlueprintPlacer {
         if (blockEntity == null) {
             return;
         }
+        session.attachBlockEntity(placedBlock.view(), blockEntity);
 
         final BlueprintBlockPlaceContext context = new BlueprintBlockPlaceContext(
                 session,
@@ -215,6 +235,82 @@ public final class SableBlueprintPlacer {
         session.deferAfterBlockEntities(() -> SableBlueprintMapperRegistry.afterLoadBlockEntity(context, loadedBlockEntity, loadedTag));
     }
 
+    private static void placeEntities(final BlueprintPlaceSession session, final SableBlueprint blueprint) {
+        for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
+            final ServerSubLevel subLevel = requirePlacedSubLevel(session, entry);
+
+            for (final SableBlueprint.EntityData data : entry.entities()) {
+                placeEntity(session, entry, subLevel, data);
+            }
+        }
+    }
+
+    private static void placeEntity(final BlueprintPlaceSession session,
+                                    final SableBlueprint.SubLevelData entry,
+                                    final ServerSubLevel subLevel,
+                                    final SableBlueprint.EntityData data) {
+        CompoundTag tag = data.tag().copy();
+        final Vector3d storagePos = placedEntityPosition(session, entry, data.localPos());
+
+        writeEntityPos(tag, storagePos);
+        tag.remove("UUID");
+
+        final EntityType<?> type = EntityType.byString(tag.getString("id")).orElse(null);
+        if (type == null) {
+            return;
+        }
+
+        final BlueprintEntityPlaceContext context = new BlueprintEntityPlaceContext(
+                session,
+                subLevel,
+                entry.id(),
+                entry.sourceUuid(),
+                data.localPos(),
+                storagePos
+        );
+        tag = SableBlueprintMapperRegistry.beforeCreateEntity(context, type, tag);
+        if (tag == null) {
+            return;
+        }
+
+        final Entity entity = EntityType.create(tag, session.level()).orElse(null);
+        if (entity == null) {
+            return;
+        }
+
+        ensureChunk(subLevel, BlockPos.containing(storagePos.x, storagePos.y, storagePos.z));
+        entity.moveTo(storagePos.x, storagePos.y, storagePos.z, entity.getYRot(), entity.getXRot());
+        session.level().addFreshEntityWithPassengers(entity);
+        SableBlueprintMapperRegistry.afterCreateEntity(context, entity, tag.copy());
+    }
+
+    private static Vector3d placedEntityPosition(final BlueprintPlaceSession session,
+                                                 final SableBlueprint.SubLevelData entry,
+                                                 final Vector3dc localPos) {
+        final BlockPos origin = placedBlocksOrigin(session, entry);
+        return new Vector3d(
+                origin.getX() + localPos.x(),
+                origin.getY() + localPos.y(),
+                origin.getZ() + localPos.z()
+        );
+    }
+
+    private static BlockPos placedBlocksOrigin(final BlueprintPlaceSession session, final SableBlueprint.SubLevelData entry) {
+        final BlockPos origin = session.placedBlockOrigin(entry.id());
+        if (origin == null) {
+            throw new IllegalStateException("No placed block origin for sub-level " + entry.id());
+        }
+        return origin;
+    }
+
+    private static void writeEntityPos(final CompoundTag tag, final Vector3dc pos) {
+        final ListTag posTag = new ListTag();
+        posTag.add(DoubleTag.valueOf(pos.x()));
+        posTag.add(DoubleTag.valueOf(pos.y()));
+        posTag.add(DoubleTag.valueOf(pos.z()));
+        tag.put("Pos", posTag);
+    }
+
     private static void notifyPlacedBlocks(final ServerLevel level, final List<PlacedBlock> placedBlocks) {
         for (final PlacedBlock placedBlock : placedBlocks) {
             final BlockPos pos = placedBlock.storagePos();
@@ -225,6 +321,7 @@ public final class SableBlueprintPlacer {
 
     private record PlacedBlock(SableBlueprint.SubLevelData entry,
                                SableBlueprint.BlockData block,
+                               BlueprintPlacedBlock view,
                                ServerSubLevel subLevel,
                                BlockPos storagePos,
                                BlockState state,
