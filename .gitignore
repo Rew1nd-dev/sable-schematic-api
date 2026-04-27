@@ -5,6 +5,11 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/**/build/
 
+### Local drafts and third-party compatibility jars ###
+doc/
+libs/*.jar
+!libs/.gitkeep
+
 ### IntelliJ IDEA ###
 .idea/
 *.iws

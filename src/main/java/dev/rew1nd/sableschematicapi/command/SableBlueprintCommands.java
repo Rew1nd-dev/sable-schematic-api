@@ -6,22 +6,18 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
-import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter;
-import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintFiles;
-import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintPlacer;
+import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolResult;
+import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolService;
 import net.minecraft.Util;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.Vec3Argument;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
@@ -30,9 +26,9 @@ public final class SableBlueprintCommands {
         final MinecraftServer server = ctx.getSource().getServer();
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return SableBlueprintFiles.list(server);
+                return BlueprintToolService.listBlueprints(server);
             } catch (final IOException e) {
-                return java.util.Set.<String>of();
+                return java.util.List.<String>of();
             }
         }, Util.backgroundExecutor()).thenCompose(names -> {
             final String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
@@ -50,7 +46,6 @@ public final class SableBlueprintCommands {
 
     public static void register(final RegisterCommandsEvent event) {
         event.getDispatcher().register(root("sablebp"));
-        event.getDispatcher().register(root("sable_schematic_api"));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> root(final String literal) {
@@ -74,22 +69,9 @@ public final class SableBlueprintCommands {
         final double radius = DoubleArgumentType.getDouble(ctx, "radius");
         final String name = StringArgumentType.getString(ctx, "name");
 
-        final SableBlueprint blueprint = SableBlueprintExporter.export(level, pos, radius);
-        if (blueprint.isEmpty()) {
-            source.sendFailure(Component.literal("No sub-levels found in blueprint radius."));
-            return 0;
-        }
-
-        try {
-            SableBlueprintFiles.save(source.getServer(), name, blueprint);
-            final Path path = SableBlueprintFiles.path(source.getServer(), name);
-            source.sendSuccess(() -> Component.literal("Saved Sable blueprint '%s' with %s sub-level(s), %s block(s), %s block entity tag(s), %s entity tag(s) to %s"
-                    .formatted(name, blueprint.subLevels().size(), blueprint.blockCount(), blueprint.blockEntityCount(), blueprint.entityCount(), path)), true);
-            return blueprint.subLevels().size();
-        } catch (final IOException e) {
-            source.sendFailure(Component.literal("Failed to save Sable blueprint: " + e.getMessage()));
-            return 0;
-        }
+        final BlueprintToolResult result = BlueprintToolService.save(source.getServer(), level, pos, radius, name);
+        sendResult(source, result);
+        return result.affectedSubLevels();
     }
 
     private static int loadSchematic(final CommandContext<CommandSourceStack> ctx) {
@@ -98,15 +80,16 @@ public final class SableBlueprintCommands {
         final String name = StringArgumentType.getString(ctx, "name");
         final Vec3 origin = source.getPosition();
 
-        try {
-            final SableBlueprint blueprint = SableBlueprintFiles.load(source.getServer(), name);
-            final SableBlueprintPlacer.Result result = SableBlueprintPlacer.place(level, blueprint, origin);
-            source.sendSuccess(() -> Component.literal("Loaded Sable blueprint '%s' with %s sub-level(s), %s block(s), %s block entity tag(s), %s entity tag(s)."
-                    .formatted(name, result.placedSubLevels(), blueprint.blockCount(), blueprint.blockEntityCount(), blueprint.entityCount())), true);
-            return result.placedSubLevels();
-        } catch (final IOException | IllegalArgumentException | IllegalStateException e) {
-            source.sendFailure(Component.literal("Failed to load Sable blueprint: " + e.getMessage()));
-            return 0;
+        final BlueprintToolResult result = BlueprintToolService.load(source.getServer(), level, origin, name);
+        sendResult(source, result);
+        return result.affectedSubLevels();
+    }
+
+    private static void sendResult(final CommandSourceStack source, final BlueprintToolResult result) {
+        if (result.success()) {
+            source.sendSuccess(result::asComponent, true);
+        } else {
+            source.sendFailure(result.asComponent());
         }
     }
 }
