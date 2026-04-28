@@ -12,4 +12,8 @@ public final class BlueprintToolClientPacketHandler {
     public static void handleSaveResult(final BlueprintToolSaveResultPayload payload) {
         BlueprintToolClientSession.handleSaveResult(payload.name(), payload.success(), payload.message(), payload.data());
     }
+
+    public static void handleSubLevelList(final BlueprintToolSubLevelListPayload payload) {
+        BlueprintToolClientSession.handleSubLevelList(payload.data());
+    }
 }

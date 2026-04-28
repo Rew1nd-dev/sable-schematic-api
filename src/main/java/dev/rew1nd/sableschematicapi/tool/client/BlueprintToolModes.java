@@ -10,8 +10,9 @@ import java.util.Map;
 public final class BlueprintToolModes {
     public static final BlueprintToolMode BLUEPRINT = new BlueprintLibraryToolMode();
     public static final BlueprintToolMode DELETE = new BlueprintDeleteToolMode();
+    public static final BlueprintToolMode SUBLEVELS = new SubLevelToolMode();
 
-    private static final List<BlueprintToolMode> MODES = List.of(BLUEPRINT, DELETE);
+    private static final List<BlueprintToolMode> MODES = List.of(BLUEPRINT, DELETE, SUBLEVELS);
     private static final Map<ResourceLocation, BlueprintToolMode> BY_ID = new LinkedHashMap<>();
 
     static {

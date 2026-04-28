@@ -8,17 +8,29 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolResult;
 import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolService;
+import dev.rew1nd.sableschematicapi.sublevel.LoadedSubLevelTeleportService;
+import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
+import dev.rew1nd.sableschematicapi.sublevel.SubLevelDirectoryService;
+import dev.rew1nd.sableschematicapi.sublevel.SubLevelOperationResult;
+import dev.rew1nd.sableschematicapi.sublevel.SubLevelRecord;
 import net.minecraft.Util;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.UuidArgument;
 import net.minecraft.commands.arguments.coordinates.Vec3Argument;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import org.joml.Vector3dc;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public final class SableBlueprintCommands {
@@ -40,6 +52,16 @@ public final class SableBlueprintCommands {
             return builder.buildFuture();
         });
     };
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_SUB_LEVELS = (ctx, builder) -> {
+        final String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        for (final SubLevelRecord record : SubLevelDirectoryService.listAll(ctx.getSource().getServer())) {
+            final String uuid = record.uuid().toString();
+            if (uuid.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                builder.suggest(uuid);
+            }
+        }
+        return builder.buildFuture();
+    };
 
     private SableBlueprintCommands() {
     }
@@ -59,7 +81,18 @@ public final class SableBlueprintCommands {
                 .then(Commands.literal("load")
                         .then(Commands.argument("name", StringArgumentType.string())
                                 .suggests(SUGGEST_BLUEPRINTS)
-                                .executes(SableBlueprintCommands::loadSchematic)));
+                                .executes(SableBlueprintCommands::loadSchematic)))
+                .then(Commands.literal("sublevels")
+                        .then(Commands.literal("list")
+                                .executes(SableBlueprintCommands::listSubLevels))
+                        .then(Commands.literal("tp_player")
+                                .then(Commands.argument("uuid", UuidArgument.uuid())
+                                        .suggests(SUGGEST_SUB_LEVELS)
+                                        .executes(SableBlueprintCommands::teleportPlayerToSubLevel)))
+                        .then(Commands.literal("bring")
+                                .then(Commands.argument("uuid", UuidArgument.uuid())
+                                        .suggests(SUGGEST_SUB_LEVELS)
+                                        .executes(SableBlueprintCommands::bringSubLevelToPlayer))));
     }
 
     private static int saveSchematic(final CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -86,6 +119,80 @@ public final class SableBlueprintCommands {
     }
 
     private static void sendResult(final CommandSourceStack source, final BlueprintToolResult result) {
+        if (result.success()) {
+            source.sendSuccess(result::asComponent, true);
+        } else {
+            source.sendFailure(result.asComponent());
+        }
+    }
+
+    private static int listSubLevels(final CommandContext<CommandSourceStack> ctx) {
+        final CommandSourceStack source = ctx.getSource();
+        final List<SubLevelRecord> records = SubLevelDirectoryService.listAll(source.getServer());
+
+        if (records.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("No Sable sub-levels found."), false);
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal("Found " + records.size() + " Sable sub-level(s):"), false);
+        for (final SubLevelRecord record : records) {
+            source.sendSuccess(() -> describeSubLevel(record), false);
+        }
+        return records.size();
+    }
+
+    private static int teleportPlayerToSubLevel(final CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        final CommandSourceStack source = ctx.getSource();
+        final ServerPlayer player = source.getPlayerOrException();
+        final UUID uuid = UuidArgument.getUuid(ctx, "uuid");
+        final Optional<SubLevelRecord> target = findSubLevel(source, uuid);
+        if (target.isEmpty()) {
+            return 0;
+        }
+
+        final SubLevelOperationResult result = LoadedSubLevelTeleportService.teleportPlayerTo(player, target.get());
+        sendResult(source, result);
+        return result.affectedSubLevels();
+    }
+
+    private static int bringSubLevelToPlayer(final CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        final CommandSourceStack source = ctx.getSource();
+        final ServerPlayer player = source.getPlayerOrException();
+        final UUID uuid = UuidArgument.getUuid(ctx, "uuid");
+        final Optional<SubLevelRecord> target = findSubLevel(source, uuid);
+        if (target.isEmpty()) {
+            return 0;
+        }
+
+        final SubLevelOperationResult result = PendingSubLevelLoadTeleportService.requestTeleportSubLevelToPlayer(player, target.get());
+        sendResult(source, result);
+        return result.affectedSubLevels();
+    }
+
+    private static Optional<SubLevelRecord> findSubLevel(final CommandSourceStack source, final UUID uuid) {
+        final Optional<SubLevelRecord> target = SubLevelDirectoryService.find(source.getServer(), uuid);
+        if (target.isEmpty()) {
+            source.sendFailure(Component.literal("No Sable sub-level found with UUID " + uuid + "."));
+        }
+        return target;
+    }
+
+    private static Component describeSubLevel(final SubLevelRecord record) {
+        final Vector3dc pos = record.pose().position();
+        final String state = record.loadState().name().toLowerCase(Locale.ROOT);
+        return Component.literal("[%s] %s %s (%s) @ %.2f %.2f %.2f".formatted(
+                record.dimension().location(),
+                state,
+                record.displayName(),
+                record.uuid(),
+                pos.x(),
+                pos.y(),
+                pos.z()
+        ));
+    }
+
+    private static void sendResult(final CommandSourceStack source, final SubLevelOperationResult result) {
         if (result.success()) {
             source.sendSuccess(result::asComponent, true);
         } else {
