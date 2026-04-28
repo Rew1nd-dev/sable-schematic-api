@@ -45,8 +45,6 @@ OP 命令：
 ```text
 /sablebp save <pos> <radius> <name>
 /sablebp load <name>
-/sable_schematic_api save <pos> <radius> <name>
-/sable_schematic_api load <name>
 ```
 
 命令保存的蓝图位于世界目录下的 `sable_blueprints/<name>.nbt`。

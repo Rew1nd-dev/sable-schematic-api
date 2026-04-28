@@ -45,8 +45,6 @@ OP commands:
 ```text
 /sablebp save <pos> <radius> <name>
 /sablebp load <name>
-/sable_schematic_api save <pos> <radius> <name>
-/sable_schematic_api load <name>
 ```
 
 Command-created blueprints are stored in the world directory under `sable_blueprints/<name>.nbt`.

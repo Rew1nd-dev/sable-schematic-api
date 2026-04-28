@@ -3,6 +3,9 @@ package dev.rew1nd.sableschematicapi.tool.client;
 import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
@@ -11,7 +14,9 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public final class BlueprintToolClientSession {
     private static final String KEY_PREFIX = "sable_schematic_api.blueprint_tool.";
@@ -19,10 +24,14 @@ public final class BlueprintToolClientSession {
     private static Vec3 start;
     private static Vec3 end;
     private static BlueprintToolLocalFiles.Entry selectedBlueprint;
+    private static List<BlueprintToolSubLevelEntry> subLevels = List.of();
+    private static UUID selectedSubLevel;
+    private static UUID openedSubLevelDetail;
     private static ResourceLocation currentModeId = BlueprintToolModes.BLUEPRINT.id();
     private static Component status = tr("status.ready");
     private static String detail = "";
     private static int localBlueprintRevision;
+    private static int subLevelRevision;
 
     private BlueprintToolClientSession() {
     }
@@ -56,6 +65,9 @@ public final class BlueprintToolClientSession {
             return;
         }
         currentModeId = mode.id();
+        if (BlueprintToolModes.SUBLEVELS.id().equals(mode.id())) {
+            requestSubLevelRefresh();
+        }
     }
 
     public static Component modeLabel() {
@@ -136,6 +148,51 @@ public final class BlueprintToolClientSession {
         SableSchematicApiPackets.sendDeleteRequest();
     }
 
+    public static void requestSubLevelRefresh() {
+        setStatusKey("sublevels_refreshing");
+        SableSchematicApiPackets.sendSubLevelRefreshRequest();
+    }
+
+    public static void requestTeleportPlayerToSubLevel(final BlueprintToolSubLevelEntry entry) {
+        if (entry == null) {
+            return;
+        }
+        setStatusKey("sublevel_tp_requested");
+        SableSchematicApiPackets.sendSubLevelAction(BlueprintToolServerSubLevelAction.TP_PLAYER, entry.uuid(), "");
+    }
+
+    public static void requestBringSubLevel(final BlueprintToolSubLevelEntry entry) {
+        if (entry == null) {
+            return;
+        }
+        setStatusKey("sublevel_bring_requested");
+        SableSchematicApiPackets.sendSubLevelAction(BlueprintToolServerSubLevelAction.BRING, entry.uuid(), "");
+    }
+
+    public static void requestToggleStatic(final BlueprintToolSubLevelEntry entry) {
+        if (entry == null) {
+            return;
+        }
+        setStatusKey("sublevel_static_requested");
+        SableSchematicApiPackets.sendSubLevelAction(BlueprintToolServerSubLevelAction.TOGGLE_STATIC, entry.uuid(), "");
+    }
+
+    public static void requestRenameSubLevel(final BlueprintToolSubLevelEntry entry, final String name) {
+        if (entry == null) {
+            return;
+        }
+        if (name == null || name.isBlank()) {
+            setStatusKey("name_required");
+            final Player player = Minecraft.getInstance().player;
+            if (player != null) {
+                notify(player, status, ChatFormatting.RED);
+            }
+            return;
+        }
+        setStatusKey("sublevel_rename_requested");
+        SableSchematicApiPackets.sendSubLevelAction(BlueprintToolServerSubLevelAction.RENAME, entry.uuid(), name.trim());
+    }
+
     public static List<BlueprintToolLocalFiles.Entry> localBlueprints() {
         try {
             return BlueprintToolLocalFiles.list();
@@ -147,6 +204,52 @@ public final class BlueprintToolClientSession {
 
     public static int localBlueprintRevision() {
         return localBlueprintRevision;
+    }
+
+    public static List<BlueprintToolSubLevelEntry> subLevels() {
+        return subLevels;
+    }
+
+    public static int subLevelRevision() {
+        return subLevelRevision;
+    }
+
+    public static void selectSubLevel(final BlueprintToolSubLevelEntry entry) {
+        selectedSubLevel = entry == null ? null : entry.uuid();
+        setStatusKey("sublevel_selected", entry == null ? "" : entry.displayName());
+        subLevelRevision++;
+    }
+
+    public static UUID selectedSubLevel() {
+        return selectedSubLevel;
+    }
+
+    public static void openSubLevelDetail(final BlueprintToolSubLevelEntry entry) {
+        openedSubLevelDetail = entry == null ? null : entry.uuid();
+        if (entry != null) {
+            selectSubLevel(entry);
+        }
+    }
+
+    public static void closeSubLevelDetail() {
+        openedSubLevelDetail = null;
+    }
+
+    public static BlueprintToolSubLevelEntry openedSubLevelDetail() {
+        return findSubLevel(openedSubLevelDetail);
+    }
+
+    public static BlueprintToolSubLevelEntry findSubLevel(final UUID uuid) {
+        if (uuid == null) {
+            return null;
+        }
+
+        for (final BlueprintToolSubLevelEntry entry : subLevels) {
+            if (uuid.equals(entry.uuid())) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     public static void selectBlueprint(final BlueprintToolLocalFiles.Entry entry) {
@@ -203,6 +306,27 @@ public final class BlueprintToolClientSession {
                 notify(player, status, ChatFormatting.RED);
             }
         }
+    }
+
+    public static void handleSubLevelList(final CompoundTag data) {
+        final ListTag list = data.getList("sublevels", Tag.TAG_COMPOUND);
+        final List<BlueprintToolSubLevelEntry> entries = new ArrayList<>(list.size());
+        for (final Tag tag : list) {
+            if (tag instanceof final CompoundTag compound && compound.hasUUID("uuid")) {
+                entries.add(BlueprintToolSubLevelEntry.fromTag(compound));
+            }
+        }
+
+        subLevels = List.copyOf(entries);
+        if (selectedSubLevel != null && findSubLevel(selectedSubLevel) == null) {
+            selectedSubLevel = null;
+        }
+        if (openedSubLevelDetail != null && findSubLevel(openedSubLevelDetail) == null) {
+            openedSubLevelDetail = null;
+        }
+
+        subLevelRevision++;
+        setStatusKey("sublevels_loaded", entries.size());
     }
 
     private static void clearSelectionSilently() {

@@ -1,6 +1,7 @@
 package dev.rew1nd.sableschematicapi.network;
 
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
+import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolServerSubLevelAction;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -47,6 +48,32 @@ public final class SableSchematicApiPackets {
         sendAction(BlueprintToolServerActions.DELETE_LOOKED_SUBLEVEL, new CompoundTag());
     }
 
+    public static void sendSubLevelRefreshRequest() {
+        sendAction(BlueprintToolServerActions.SUBLEVEL_REFRESH, new CompoundTag());
+    }
+
+    public static void sendSubLevelAction(final BlueprintToolServerSubLevelAction action,
+                                          final java.util.UUID uuid,
+                                          final String name) {
+        if (uuid == null) {
+            return;
+        }
+
+        final CompoundTag data = new CompoundTag();
+        data.putUUID("uuid", uuid);
+        if (name != null) {
+            data.putString("name", name);
+        }
+
+        final net.minecraft.resources.ResourceLocation actionId = switch (action) {
+            case TP_PLAYER -> BlueprintToolServerActions.SUBLEVEL_TP_PLAYER;
+            case BRING -> BlueprintToolServerActions.SUBLEVEL_BRING;
+            case TOGGLE_STATIC -> BlueprintToolServerActions.SUBLEVEL_TOGGLE_STATIC;
+            case RENAME -> BlueprintToolServerActions.SUBLEVEL_RENAME;
+        };
+        sendAction(actionId, data);
+    }
+
     public static void sendAction(final net.minecraft.resources.ResourceLocation action, final CompoundTag data) {
         PacketDistributor.sendToServer(new BlueprintToolActionPayload(action, data));
     }
@@ -56,6 +83,7 @@ public final class SableSchematicApiPackets {
         final PayloadRegistrar registrar = event.registrar("1");
         registrar.playToServer(BlueprintToolActionPayload.TYPE, BlueprintToolActionPayload.STREAM_CODEC, SableSchematicApiPackets::handleActionRequest);
         registrar.playToClient(BlueprintToolSaveResultPayload.TYPE, BlueprintToolSaveResultPayload.STREAM_CODEC, SableSchematicApiPackets::handleSaveResult);
+        registrar.playToClient(BlueprintToolSubLevelListPayload.TYPE, BlueprintToolSubLevelListPayload.STREAM_CODEC, SableSchematicApiPackets::handleSubLevelList);
     }
 
     private static void handleActionRequest(final BlueprintToolActionPayload payload, final IPayloadContext context) {
@@ -70,12 +98,20 @@ public final class SableSchematicApiPackets {
         BlueprintToolClientPacketHandler.handleSaveResult(payload);
     }
 
+    private static void handleSubLevelList(final BlueprintToolSubLevelListPayload payload, final IPayloadContext context) {
+        BlueprintToolClientPacketHandler.handleSubLevelList(payload);
+    }
+
     static void sendSaveResult(final ServerPlayer player,
                                final String name,
                                final boolean success,
                                final String message,
                                final byte[] data) {
         PacketDistributor.sendToPlayer(player, new BlueprintToolSaveResultPayload(name, success, message, data));
+    }
+
+    static void sendSubLevelList(final ServerPlayer player, final CompoundTag data) {
+        PacketDistributor.sendToPlayer(player, new BlueprintToolSubLevelListPayload(data));
     }
 
     static boolean canUseBlueprintTool(final ServerPlayer player) {

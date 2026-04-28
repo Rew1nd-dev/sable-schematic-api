@@ -5,8 +5,11 @@ import dev.rew1nd.sableschematicapi.command.SableBlueprintCommands;
 import dev.rew1nd.sableschematicapi.compat.create.CreateBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.simulated.SimulatedBlueprintCompat;
 import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
+import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
+import dev.rew1nd.sableschematicapi.sublevel.RuntimeSubLevelStaticService;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiCreativeTabs;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
+import dev.ryanhcode.sable.platform.SableEventPlatform;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModList;
@@ -25,11 +28,15 @@ public final class SableSchematicApi {
         SableSchematicApiCreativeTabs.register(modEventBus);
         SableSchematicApiPackets.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(SableBlueprintCommands::register);
+        NeoForge.EVENT_BUS.addListener(PendingSubLevelLoadTeleportService::tick);
+        NeoForge.EVENT_BUS.addListener(RuntimeSubLevelStaticService::onServerStopped);
         modEventBus.addListener(this::commonSetup);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
+            SableEventPlatform.INSTANCE.onSubLevelContainerReady(RuntimeSubLevelStaticService::onSubLevelContainerReady);
+
             if (ModList.get().isLoaded("create")) {
                 CreateBlueprintCompat.register();
             }
