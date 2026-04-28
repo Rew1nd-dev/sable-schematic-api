@@ -4,6 +4,8 @@ import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -17,8 +19,10 @@ public final class BlueprintToolClientSession {
     private static Vec3 start;
     private static Vec3 end;
     private static BlueprintToolLocalFiles.Entry selectedBlueprint;
+    private static ResourceLocation currentModeId = BlueprintToolModes.BLUEPRINT.id();
     private static Component status = tr("status.ready");
     private static String detail = "";
+    private static int localBlueprintRevision;
 
     private BlueprintToolClientSession() {
     }
@@ -41,6 +45,27 @@ public final class BlueprintToolClientSession {
         }
 
         clearSelection(player);
+    }
+
+    public static BlueprintToolMode currentMode() {
+        return BlueprintToolModes.byId(currentModeId);
+    }
+
+    public static void setMode(final BlueprintToolMode mode) {
+        if (mode == null) {
+            return;
+        }
+        currentModeId = mode.id();
+    }
+
+    public static Component modeLabel() {
+        return currentMode().label();
+    }
+
+    public static BlueprintToolInputResult handleInput(final Player player,
+                                                       final InteractionHand hand,
+                                                       final BlueprintToolInputIntent intent) {
+        return currentMode().handleInput(new BlueprintToolInputContext(player, hand, intent));
     }
 
     public static void clearSelection(final Player player) {
@@ -105,6 +130,12 @@ public final class BlueprintToolClientSession {
         }
     }
 
+    public static void requestDeleteLookedSubLevel(final Player player) {
+        setStatusKey("delete_requested");
+        notify(player, status, ChatFormatting.YELLOW);
+        SableSchematicApiPackets.sendDeleteRequest();
+    }
+
     public static List<BlueprintToolLocalFiles.Entry> localBlueprints() {
         try {
             return BlueprintToolLocalFiles.list();
@@ -112,6 +143,10 @@ public final class BlueprintToolClientSession {
             setStatus(tr("status.list_failed"), e.getMessage());
             return List.of();
         }
+    }
+
+    public static int localBlueprintRevision() {
+        return localBlueprintRevision;
     }
 
     public static void selectBlueprint(final BlueprintToolLocalFiles.Entry entry) {
@@ -129,7 +164,7 @@ public final class BlueprintToolClientSession {
 
     public static Component hudText() {
         final Component load = selectedBlueprint == null ? tr("load.none") : tr("load.named", selectedBlueprint.name());
-        return tr("hud", selectionLabel(), load, status);
+        return tr("hud", modeLabel(), selectionLabel(), load, status);
     }
 
     public static void setStatusKey(final String key, final Object... args) {
@@ -161,6 +196,7 @@ public final class BlueprintToolClientSession {
                 notify(player, status, ChatFormatting.GREEN);
             }
             clearSelectionSilently();
+            localBlueprintRevision++;
         } catch (final IOException e) {
             setStatus(tr("status.write_failed"), e.getMessage());
             if (player != null) {

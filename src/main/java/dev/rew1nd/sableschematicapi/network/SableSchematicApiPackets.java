@@ -1,10 +1,8 @@
 package dev.rew1nd.sableschematicapi.network;
 
-import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolFile;
-import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolResult;
-import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolService;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
 import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -19,7 +17,8 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 public final class SableSchematicApiPackets {
     private static final String KEY_PREFIX = "sable_schematic_api.blueprint_tool.";
     public static final int MAX_BLUEPRINT_BYTES = 16 * 1024 * 1024;
-    private static final double MAX_LOAD_DISTANCE_SQUARED = 96.0 * 96.0;
+    public static final long MAX_ACTION_NBT_BYTES = MAX_BLUEPRINT_BYTES + 64L * 1024L;
+    static final double MAX_LOAD_DISTANCE_SQUARED = 96.0 * 96.0;
 
     private SableSchematicApiPackets() {
     }
@@ -29,73 +28,57 @@ public final class SableSchematicApiPackets {
     }
 
     public static void sendSaveRequest(final String name, final Vec3 start, final Vec3 end) {
-        PacketDistributor.sendToServer(new BlueprintToolSaveRequestPayload(name, start, end));
+        final CompoundTag data = new CompoundTag();
+        data.putString("name", name == null ? "" : name);
+        data.put("start", BlueprintToolServerActions.writeVec3(start));
+        data.put("end", BlueprintToolServerActions.writeVec3(end));
+        sendAction(BlueprintToolServerActions.SAVE_SELECTION, data);
     }
 
     public static void sendLoadRequest(final String name, final Vec3 origin, final byte[] data) {
-        PacketDistributor.sendToServer(new BlueprintToolLoadRequestPayload(name, origin, data));
+        final CompoundTag tag = new CompoundTag();
+        tag.putString("name", name == null ? "" : name);
+        tag.put("origin", BlueprintToolServerActions.writeVec3(origin));
+        tag.putByteArray("data", data == null ? new byte[0] : data);
+        sendAction(BlueprintToolServerActions.LOAD_BLUEPRINT, tag);
+    }
+
+    public static void sendDeleteRequest() {
+        sendAction(BlueprintToolServerActions.DELETE_LOOKED_SUBLEVEL, new CompoundTag());
+    }
+
+    public static void sendAction(final net.minecraft.resources.ResourceLocation action, final CompoundTag data) {
+        PacketDistributor.sendToServer(new BlueprintToolActionPayload(action, data));
     }
 
     private static void registerPayloads(final RegisterPayloadHandlersEvent event) {
+        BlueprintToolServerActions.registerDefaults();
         final PayloadRegistrar registrar = event.registrar("1");
-        registrar.playToServer(BlueprintToolSaveRequestPayload.TYPE, BlueprintToolSaveRequestPayload.STREAM_CODEC, SableSchematicApiPackets::handleSaveRequest);
-        registrar.playToServer(BlueprintToolLoadRequestPayload.TYPE, BlueprintToolLoadRequestPayload.STREAM_CODEC, SableSchematicApiPackets::handleLoadRequest);
+        registrar.playToServer(BlueprintToolActionPayload.TYPE, BlueprintToolActionPayload.STREAM_CODEC, SableSchematicApiPackets::handleActionRequest);
         registrar.playToClient(BlueprintToolSaveResultPayload.TYPE, BlueprintToolSaveResultPayload.STREAM_CODEC, SableSchematicApiPackets::handleSaveResult);
     }
 
-    private static void handleSaveRequest(final BlueprintToolSaveRequestPayload payload, final IPayloadContext context) {
+    private static void handleActionRequest(final BlueprintToolActionPayload payload, final IPayloadContext context) {
         if (!(context.player() instanceof final ServerPlayer player)) {
             return;
         }
 
-        if (!canUseBlueprintTool(player)) {
-            sendSaveResult(player, payload.name(), false, "op_required", new byte[0]);
-            return;
-        }
-
-        final BlueprintToolFile file = BlueprintToolService.saveSelectionToBytes(player.serverLevel(), payload.start(), payload.end(), payload.name());
-        sendSaveResult(player, payload.name(), file.success(), file.result().message(), file.data());
-    }
-
-    private static void handleLoadRequest(final BlueprintToolLoadRequestPayload payload, final IPayloadContext context) {
-        if (!(context.player() instanceof final ServerPlayer player)) {
-            return;
-        }
-
-        if (!canUseBlueprintTool(player)) {
-            notify(player, tr("status.op_required"), ChatFormatting.RED);
-            return;
-        }
-
-        if (payload.data().length == 0 || payload.data().length > MAX_BLUEPRINT_BYTES) {
-            notify(player, tr("status.invalid_upload"), ChatFormatting.RED);
-            return;
-        }
-
-        if (player.position().distanceToSqr(payload.origin()) > MAX_LOAD_DISTANCE_SQUARED) {
-            notify(player, tr("status.too_far"), ChatFormatting.RED);
-            return;
-        }
-
-        final BlueprintToolResult result = BlueprintToolService.loadBytes(player.serverLevel(), payload.origin(), payload.data(), payload.name());
-        notify(player,
-                result.success() ? tr("status.placed", payload.name()) : tr("status.place_failed"),
-                result.success() ? ChatFormatting.GREEN : ChatFormatting.RED);
+        BlueprintToolServerActions.handle(payload.action(), player, payload.data());
     }
 
     private static void handleSaveResult(final BlueprintToolSaveResultPayload payload, final IPayloadContext context) {
         BlueprintToolClientPacketHandler.handleSaveResult(payload);
     }
 
-    private static void sendSaveResult(final ServerPlayer player,
-                                       final String name,
-                                       final boolean success,
-                                       final String message,
-                                       final byte[] data) {
+    static void sendSaveResult(final ServerPlayer player,
+                               final String name,
+                               final boolean success,
+                               final String message,
+                               final byte[] data) {
         PacketDistributor.sendToPlayer(player, new BlueprintToolSaveResultPayload(name, success, message, data));
     }
 
-    private static boolean canUseBlueprintTool(final ServerPlayer player) {
+    static boolean canUseBlueprintTool(final ServerPlayer player) {
         return player.hasPermissions(2) && holdingBlueprintTool(player);
     }
 
@@ -105,11 +88,11 @@ public final class SableSchematicApiPackets {
         return main.is(SableSchematicApiItems.BLUEPRINT_TOOL.get()) || off.is(SableSchematicApiItems.BLUEPRINT_TOOL.get());
     }
 
-    private static void notify(final ServerPlayer player, final Component message, final ChatFormatting color) {
+    static void notify(final ServerPlayer player, final Component message, final ChatFormatting color) {
         player.displayClientMessage(message.copy().withStyle(color), true);
     }
 
-    private static Component tr(final String key, final Object... args) {
+    static Component tr(final String key, final Object... args) {
         return Component.translatable(KEY_PREFIX + key, args);
     }
 }

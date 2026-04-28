@@ -1,43 +1,46 @@
 # Sable Schematic API
 
-Sable Schematic API 是一个面向 [Sable](https://github.com/ryanhcode/sable) sub-level 的 blueprint / schematic 外置实验 mod。它把蓝图保存、加载、引用 remap、兼容层 sidecar 和一个轻量的游戏内蓝图工具放在独立 mod 中验证，等 API 边界稳定后，再把适合进入核心的部分整理回 Sable 上游。
+Language: English | [简体中文](README.zh-CN.md)
 
-当前版本仍是 `0.1.0` 草案 API：适合兼容性验证和小范围使用，但不承诺长期二进制稳定。
+Sable Schematic API is an experimental external blueprint / schematic mod for [Sable](https://github.com/ryanhcode/sable) sub-levels. It keeps blueprint save/load logic, reference remapping, compatibility sidecars, and a lightweight in-game blueprint tool in a separate mod while the API boundary is being tested. Once the API is stable enough, suitable pieces can be prepared for upstreaming back into Sable.
 
-## 功能
+Version `0.1.0` is still a draft API. It is suitable for compatibility testing and controlled use, but it does not promise long-term binary stability yet.
 
-- 保存并加载 Sable sub-level 蓝图。
-- 保存方块、方块实体、普通实体和 Create contraption entity。
-- 提供 block mapper、entity mapper 和 global blueprint event 三类兼容扩展点。
-- 提供 OP 命令保存/加载蓝图。
-- 提供 LDLib2 驱动的 `sable_schematic_api:blueprint_tool` 游戏内工具。
-- Create 兼容：
-  - remap contraption entity 的 `Contraption.Anchor`。
-  - 通过 sidecar 保存并恢复 Super Glue。
-- Simulated Project 兼容：
-  - 保存并恢复 swivel-bearing 与 plate 的连接关系。
-  - 保存并恢复 rope-winch / rope-connector 的 rope strand。
-  - 跳过临时的 launched plunger entity，避免蓝图保存无效运行态。
+## Features
 
-## 版本与依赖
+- Save and load Sable sub-level blueprints.
+- Save blocks, block entities, regular entities, and Create contraption entities.
+- Provide block mapper, entity mapper, and global blueprint event extension points.
+- Provide OP-only commands for saving and loading blueprints.
+- Provide an LDLib2-powered `sable_schematic_api:blueprint_tool` in-game tool.
+- Create compatibility:
+  - Remaps contraption entity `Contraption.Anchor` data.
+  - Saves and restores Super Glue through sidecar data.
+- Simulated Project compatibility:
+  - Saves and restores swivel-bearing / plate connections.
+  - Saves and restores rope-winch / rope-connector rope strands.
+  - Skips temporary launched plunger entities to avoid saving invalid runtime state.
 
-必要运行依赖：
+## Versions And Dependencies
+
+Required runtime dependencies:
 
 - Minecraft `1.21.1`
 - NeoForge `21.1.226+`
 - Sable `1.1.3+`
 - LDLib2 `2.2.6+`
 
-可选兼容依赖：
+Optional compatibility dependencies:
 
 - Create `6.0.10+`
 - Simulated Project `1.1.3+`
+- Create: Copycats+ `3.0.4+`
 
-只有安装对应可选 mod 时，相关兼容 mapper 和 event 才会注册。
+Compatibility mappers and events are only registered when the corresponding optional mod is loaded.
 
-## 使用
+## Usage
 
-OP 命令：
+OP commands:
 
 ```text
 /sablebp save <pos> <radius> <name>
@@ -46,75 +49,76 @@ OP 命令：
 /sable_schematic_api load <name>
 ```
 
-命令保存的蓝图位于世界目录下的 `sable_blueprints/<name>.nbt`。
+Command-created blueprints are stored in the world directory under `sable_blueprints/<name>.nbt`.
 
-游戏内工具：
+In-game tool:
 
 ```text
 /give @p sable_schematic_api:blueprint_tool
 ```
 
-- 手持工具左键依次选择 start / end。
-- Shift + 左键清除当前选择和待加载蓝图。
-- Tab 打开蓝图工具 UI。
-- Save 会把选区导出为客户端本地 `Sable-Schematics/<name>.nbt`。
-- 在 UI 中选择本地蓝图后，右键会把蓝图上传到服务器并放置到视线目标位置。
+- Hold the tool and left click to select the start and end points.
+- Shift + left click clears the current selection and selected load blueprint.
+- Press Tab while holding the tool to open the blueprint UI.
+- Save exports the selected area to the client-side `Sable-Schematics/<name>.nbt` folder.
+- Select a local blueprint in the UI, then right click to upload it to the server and place it at the look target.
 
-工具保存/加载同样要求玩家拥有 OP 权限，并且必须手持蓝图工具。
+Tool-based saving and loading also require OP permission, and the player must be holding the blueprint tool.
 
 ## Build Prerequisites
 
-- JDK 21。
-- Git。
-- Gradle wrapper 文件已随仓库提供，干净克隆后可直接使用 `./gradlew` 或 `./gradlew.bat`。
-- 从 Simulated-Project release 下载 `create-aeronautics-1.1.3.jar` 到本项目的 `libs/` 目录：
+- JDK 21.
+- Git.
+- The Gradle wrapper is included, so clean clones can use `./gradlew` or `./gradlew.bat`.
+- Download the following optional compatibility test jars into this project's `libs/` directory:
 
 ```text
 libs/create-aeronautics-1.1.3.jar
+libs/copycats.jar
 ```
 
-这个 jar 只用于本地编译和运行 Simulated Project 兼容代码。它不是本项目源码的一部分，也不应被打包进本项目发布 jar。
+These jars are only used for local compilation and development runs of optional compatibility code. They are not part of this project's source code and should not be bundled into this project's release jar.
 
-构建：
+Build:
 
 ```powershell
 ./gradlew.bat build
 ```
 
-生成 Javadoc：
+Generate Javadocs:
 
 ```powershell
 ./gradlew.bat javadoc
 ```
 
-## 开发者入口
+## Developer API
 
-公共 API 位于：
+Public API package:
 
 ```text
 dev.rew1nd.sableschematicapi.api.blueprint
 ```
 
-主要扩展点：
+Main extension points:
 
-- `SableBlueprintBlockMapper`：修改或清理方块实体 NBT，并在加载后恢复运行态。
-- `SableBlueprintEntityMapper`：修改、跳过或恢复实体 NBT。
-- `SableBlueprintEvent`：为跨方块、跨实体或外部管理器状态保存 global sidecar。
-- `BlueprintSaveSession` / `BlueprintPlaceSession`：提供蓝图内部引用、sub-level UUID 映射、block pos 映射和 UUID 分配。
+- `SableBlueprintBlockMapper`: modify or clear block entity NBT, then restore runtime state after loading.
+- `SableBlueprintEntityMapper`: modify, skip, or restore entity NBT.
+- `SableBlueprintEvent`: store global sidecar data for cross-block, cross-entity, or manager-owned state.
+- `BlueprintSaveSession` / `BlueprintPlaceSession`: expose blueprint-local references, sub-level UUID mappings, block position mappings, and UUID allocation.
 
-当前开发者文档优先维护在源码 Javadoc 中，避免草案阶段的外部文档与 API 漂移。
+Developer documentation is currently maintained in source Javadocs to keep it close to the draft API.
 
-## 已知限制
+## Known Limitations
 
-- 当前蓝图主要保存 Sable sub-level 内部内容，不把普通 root world blocks 纳入同一引用映射。
-- 旋转和镜像尚未作为公开能力承诺；现有 compat 主要按整体平移处理。
-- Blueprint NBT 格式当前为 v1，不支持旧的 legacy plot payload。
-- 可选 mod 的 compat 依赖对应版本的运行时 NBT / API 结构，后续可能随上游变化调整。
+- Current blueprints mainly save Sable sub-level contents. Regular root-world blocks are not part of the same reference mapping.
+- Rotation and mirroring are not exposed as stable features yet. Existing compatibility behavior mainly assumes translation.
+- Blueprint NBT format is currently v1 and does not support legacy plot payloads.
+- Optional compatibility depends on the runtime NBT / API structure of the targeted mod versions and may change with upstream updates.
 
-## 许可
+## License
 
-除非另有说明，本仓库源码采用 [PolyForm Shield License 1.0.0](LICENSE.md)。
+Unless otherwise stated, this repository's source code is licensed under the [PolyForm Shield License 1.0.0](LICENSE.md).
 
-你可以在非竞争性场景中使用、分发、打包到 modpack、作为服务端依赖或开发依赖使用本 mod。不要把本项目改名后作为替代品重新发布，不要冒充 Sable、Sable Schematic API 或其官方兼容版本。
+You may use, distribute, include in modpacks, run on servers, or depend on this mod in non-competing contexts. Do not rename and republish this project as a replacement, and do not impersonate Sable, Sable Schematic API, or an official compatibility build.
 
-第三方依赖和本地 `libs/` 中的 jar 不属于本项目源码许可覆盖范围，请遵循它们各自的许可证和发布条款。
+Third-party dependencies and jars placed under `libs/` are not covered by this project's source license. Follow their own licenses and distribution terms.
