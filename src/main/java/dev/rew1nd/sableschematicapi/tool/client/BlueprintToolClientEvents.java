@@ -45,13 +45,10 @@ public final class BlueprintToolClientEvents {
         }
 
         if (event.isAttack() && holdingBlueprintTool(player, InteractionHand.MAIN_HAND)) {
-            if (player.isShiftKeyDown()) {
-                BlueprintToolClientSession.clearSelection(player);
-            } else {
-                BlueprintToolClientSession.advanceSelection(player);
-            }
-            event.setCanceled(true);
-            event.setSwingHand(true);
+            final BlueprintToolInputIntent intent = player.isShiftKeyDown()
+                    ? BlueprintToolInputIntent.SHIFT_ATTACK
+                    : BlueprintToolInputIntent.ATTACK;
+            applyInputResult(event, BlueprintToolClientSession.handleInput(player, InteractionHand.MAIN_HAND, intent));
             return;
         }
 
@@ -59,15 +56,10 @@ public final class BlueprintToolClientEvents {
             return;
         }
 
-        event.setCanceled(true);
-        event.setSwingHand(true);
-
-        if (BlueprintToolClientSession.selectedBlueprint() != null) {
-            BlueprintToolClientSession.requestLoadAtLookTarget(player);
-        } else {
-            BlueprintToolClientSession.setStatusKey("no_file_selected");
-            BlueprintToolClientSession.notifyStatus(player, net.minecraft.ChatFormatting.YELLOW);
-        }
+        final BlueprintToolInputIntent intent = player.isShiftKeyDown()
+                ? BlueprintToolInputIntent.SHIFT_USE
+                : BlueprintToolInputIntent.USE;
+        applyInputResult(event, BlueprintToolClientSession.handleInput(player, event.getHand(), intent));
     }
 
     private static void onClientTick(final ClientTickEvent.Post event) {
@@ -110,5 +102,15 @@ public final class BlueprintToolClientEvents {
 
     private static boolean holdingBlueprintTool(final Player player) {
         return holdingBlueprintTool(player, InteractionHand.MAIN_HAND) || holdingBlueprintTool(player, InteractionHand.OFF_HAND);
+    }
+
+    private static void applyInputResult(final InputEvent.InteractionKeyMappingTriggered event,
+                                         final BlueprintToolInputResult result) {
+        if (!result.consumed()) {
+            return;
+        }
+
+        event.setCanceled(true);
+        event.setSwingHand(result.swingHand());
     }
 }

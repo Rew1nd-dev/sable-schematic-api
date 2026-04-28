@@ -18,6 +18,7 @@ version = mod_version
 group = mod_group_id
 
 def createAeronauticsBundledJar = file("libs/create-aeronautics-${project.create_aeronautics_version}.jar")
+def copycatsJar = file("libs/copycats.jar")
 def extractedCreateAeronauticsDir = layout.buildDirectory.dir("compat/create-aeronautics-${project.create_aeronautics_version}")
 def extractCreateAeronauticsModules = tasks.register("extractCreateAeronauticsModules", Copy) {
     group = "compatibility"
@@ -131,7 +132,7 @@ repositories {
 }
 
 base {
-    archivesName = mod_id
+    archivesName = archive_name
 }
 
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
@@ -218,6 +219,10 @@ configurations {
 }
 
 dependencies {
+    if (!copycatsJar.isFile()) {
+        throw new GradleException("Missing Copycats compatibility jar: ${copycatsJar}. Copy copycats.jar into this project's libs directory.")
+    }
+
     compileOnlyApi("dev.ryanhcode.sable:sable-common-${project.minecraft_version}:${project.sable_version}")
 
     // Loads Sable itself in NeoForge dev runs without leaking it as a published transitive dependency.
@@ -243,6 +248,9 @@ dependencies {
 
     compileOnly createAeronauticsModuleJars
     localRuntime createAeronauticsModuleJars
+
+    compileOnly files(copycatsJar)
+    localRuntime files(copycatsJar)
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -261,6 +269,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             ldlib2_mod_version     : ldlib2_mod_version,
             create_version_range   : create_version_range,
             simulated_project_version_range: simulated_project_version_range,
+            copycats_version_range : copycats_version_range,
     ]
     inputs.properties replaceProperties
     expand replaceProperties
