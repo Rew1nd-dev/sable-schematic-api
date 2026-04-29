@@ -21,9 +21,11 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.Comparator;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -56,22 +58,33 @@ public final class PendingSubLevelLoadTeleportService {
             return SubLevelOperationResult.failure("No Sable sub-level container is available for this level.");
         }
 
-        final SubLevel loaded = container.getSubLevel(target.uuid());
-        if (loaded instanceof final ServerSubLevel loadedSubLevel && !loadedSubLevel.isRemoved()) {
-            return LoadedSubLevelTeleportService.teleportSubLevelTo(player, loadedSubLevel);
+        final SubLevelGroupRecord group = SubLevelGroupService.findGroup(server, target.uuid())
+                .orElse(new SubLevelGroupRecord(target.uuid(), List.of(target)));
+        for (final SubLevelRecord member : group.members()) {
+            if (!member.dimension().equals(player.serverLevel().dimension())) {
+                return SubLevelOperationResult.failure("Bringing sub-level groups across dimensions is not supported yet.");
+            }
         }
 
-        if (target.pointer() == null) {
-            return SubLevelOperationResult.failure("Stored sub-level " + target.displayName() + " has no storage pointer.");
+        final Set<UUID> targetIds = new LinkedHashSet<>(group.memberIds());
+        final Vec3 destination = LoadedSubLevelTeleportService.destinationNear(player);
+        if (allLoaded(container, targetIds)) {
+            return LoadedSubLevelTeleportService.teleportSubLevelGroupTo(player, targetIds, target.uuid(), destination);
         }
 
-        final RequiredChunks requiredChunks = collectRequiredChunks(level, target);
+        for (final SubLevelRecord member : group.members()) {
+            if (!member.loaded() && member.pointer() == null) {
+                return SubLevelOperationResult.failure("Stored sub-level " + member.displayName() + " has no storage pointer.");
+            }
+        }
+
+        final RequiredChunks requiredChunks = collectRequiredChunks(level, group.members());
         if (requiredChunks.ticketedChunks().isEmpty()) {
-            return SubLevelOperationResult.failure("No source chunks were found for sub-level " + target.displayName() + ".");
+            return SubLevelOperationResult.failure("No source chunks were found for sub-level group anchored at " + target.displayName() + ".");
         }
 
         if (requiredChunks.ticketedChunks().size() > MAX_TICKETED_CHUNKS) {
-            return SubLevelOperationResult.failure("Sub-level " + target.displayName() + " requires too many source chunks to load safely.");
+            return SubLevelOperationResult.failure("Sub-level group anchored at " + target.displayName() + " requires too many source chunks to load safely.");
         }
 
         cancelForPlayer(server, player.getUUID());
@@ -84,14 +97,15 @@ public final class PendingSubLevelLoadTeleportService {
                 player.getUUID(),
                 target.dimension(),
                 target.uuid(),
-                LoadedSubLevelTeleportService.destinationNear(player),
+                targetIds,
+                destination,
                 level.getGameTime(),
                 requiredChunks.ticketedChunks(),
                 requiredChunks.holdingChunks(),
                 new LinkedHashSet<>()
         ));
 
-        return SubLevelOperationResult.success("Queued stored sub-level " + target.displayName() + " for loading.", 1);
+        return SubLevelOperationResult.success("Queued sub-level group anchored at " + target.displayName() + " for loading.", group.members().size());
     }
 
     public static void tick(final ServerTickEvent.Post event) {
@@ -155,37 +169,54 @@ public final class PendingSubLevelLoadTeleportService {
 
         primeVisibleHoldingChunks(level, container, request.holdingChunks(), request.primedHoldingChunks());
 
-        final SubLevel subLevel = container.getSubLevel(request.subLevelId());
-        if (subLevel instanceof final ServerSubLevel target && !target.isRemoved()) {
-            final SubLevelOperationResult result = LoadedSubLevelTeleportService.teleportSubLevelTo(player, target, request.destination());
+        if (allLoaded(container, request.subLevelIds())) {
+            final SubLevelOperationResult result = LoadedSubLevelTeleportService.teleportSubLevelGroupTo(
+                    player,
+                    request.subLevelIds(),
+                    request.anchorSubLevelId(),
+                    request.destination()
+            );
             notify(player, result);
             return new TickResult(true, level);
         }
 
         if (level.getGameTime() - request.createdGameTime() > TIMEOUT_TICKS) {
-            notify(player, SubLevelOperationResult.failure("Timed out while waiting for the stored sub-level to load."));
-            SableSchematicApi.LOGGER.warn("Timed out waiting for stored Sable sub-level {} to load for player {}", request.subLevelId(), request.playerId());
+            notify(player, SubLevelOperationResult.failure("Timed out while waiting for the stored sub-level group to load."));
+            SableSchematicApi.LOGGER.warn("Timed out waiting for stored Sable sub-level group {} to load for player {}", request.subLevelIds(), request.playerId());
             return new TickResult(true, level);
         }
 
         return new TickResult(false, level);
     }
 
-    private static RequiredChunks collectRequiredChunks(final ServerLevel level, final SubLevelRecord target) {
+    private static RequiredChunks collectRequiredChunks(final ServerLevel level,
+                                                        final Collection<SubLevelRecord> targets) {
         final Map<UUID, SubLevelRecord> recordsById = SubLevelDirectoryService.list(level).stream()
                 .collect(Collectors.toMap(SubLevelRecord::uuid, Function.identity(), (first, second) -> first));
         final Set<ChunkPos> ticketedChunks = new LinkedHashSet<>();
         final Set<ChunkPos> holdingChunks = new LinkedHashSet<>();
 
-        addRecordChunks(ticketedChunks, holdingChunks, target);
-        for (final UUID dependency : target.dependencies()) {
-            final SubLevelRecord dependencyRecord = recordsById.get(dependency);
-            if (dependencyRecord != null) {
-                addRecordChunks(ticketedChunks, holdingChunks, dependencyRecord);
+        for (final SubLevelRecord target : targets) {
+            addRecordChunks(ticketedChunks, holdingChunks, target);
+            for (final UUID dependency : target.dependencies()) {
+                final SubLevelRecord dependencyRecord = recordsById.get(dependency);
+                if (dependencyRecord != null) {
+                    addRecordChunks(ticketedChunks, holdingChunks, dependencyRecord);
+                }
             }
         }
 
         return new RequiredChunks(ticketedChunks, holdingChunks);
+    }
+
+    private static boolean allLoaded(final ServerSubLevelContainer container, final Set<UUID> targetIds) {
+        for (final UUID targetId : targetIds) {
+            final SubLevel subLevel = container.getSubLevel(targetId);
+            if (!(subLevel instanceof final ServerSubLevel serverSubLevel) || serverSubLevel.isRemoved()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void addRecordChunks(final Set<ChunkPos> ticketedChunks,
@@ -197,6 +228,7 @@ public final class PendingSubLevelLoadTeleportService {
         }
 
         addBoundsChunks(ticketedChunks, record.bounds());
+        addBoundsChunks(holdingChunks, record.bounds());
     }
 
     private static void addBoundsChunks(final Set<ChunkPos> chunks, final BoundingBox3dc bounds) {
@@ -256,7 +288,8 @@ public final class PendingSubLevelLoadTeleportService {
     private record PendingRequest(UUID requestId,
                                   UUID playerId,
                                   ResourceKey<Level> dimension,
-                                  UUID subLevelId,
+                                  UUID anchorSubLevelId,
+                                  Set<UUID> subLevelIds,
                                   Vec3 destination,
                                   long createdGameTime,
                                   Set<ChunkPos> ticketedChunks,

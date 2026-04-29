@@ -1,5 +1,6 @@
 package dev.rew1nd.sableschematicapi.tool.client;
 
+import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
 import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -7,15 +8,21 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public final class BlueprintToolClientSession {
@@ -24,13 +31,17 @@ public final class BlueprintToolClientSession {
     private static Vec3 start;
     private static Vec3 end;
     private static BlueprintToolLocalFiles.Entry selectedBlueprint;
+    private static BlueprintToolLocalFiles.Entry openedBlueprintPreview;
+    private static SableBlueprintPreview.View openedBlueprintPreviewView = SableBlueprintPreview.View.TOP;
     private static List<BlueprintToolSubLevelEntry> subLevels = List.of();
+    private static BlueprintToolSubLevelSortMode subLevelSortMode = BlueprintToolSubLevelSortMode.NAME_DESC;
     private static UUID selectedSubLevel;
     private static UUID openedSubLevelDetail;
     private static ResourceLocation currentModeId = BlueprintToolModes.BLUEPRINT.id();
     private static Component status = tr("status.ready");
     private static String detail = "";
     private static int localBlueprintRevision;
+    private static int blueprintPreviewRevision;
     private static int subLevelRevision;
 
     private BlueprintToolClientSession() {
@@ -92,6 +103,38 @@ public final class BlueprintToolClientSession {
         return start != null && end != null;
     }
 
+    public static AABB selectionBox() {
+        if (start == null) {
+            return null;
+        }
+
+        return selectionBoxTo(end == null ? start : end);
+    }
+
+    public static AABB selectionPreviewBox(final Player player) {
+        if (start == null) {
+            return null;
+        }
+
+        if (end != null || player == null) {
+            return selectionBox();
+        }
+
+        return selectionBoxTo(player.position());
+    }
+
+    private static AABB selectionBoxTo(final Vec3 target) {
+        final BlockPos startPos = BlockPos.containing(start);
+        final BlockPos endPos = BlockPos.containing(target);
+        final int minX = Math.min(startPos.getX(), endPos.getX());
+        final int minY = Math.min(startPos.getY(), endPos.getY());
+        final int minZ = Math.min(startPos.getZ(), endPos.getZ());
+        final int maxX = Math.max(startPos.getX(), endPos.getX());
+        final int maxY = Math.max(startPos.getY(), endPos.getY());
+        final int maxZ = Math.max(startPos.getZ(), endPos.getZ());
+        return new AABB(minX, minY, minZ, maxX + 1.0, maxY + 1.0, maxZ + 1.0);
+    }
+
     public static Component selectionLabel() {
         if (start == null) {
             return tr("selection.none");
@@ -130,7 +173,7 @@ public final class BlueprintToolClientSession {
         }
 
         try {
-            final byte[] data = BlueprintToolLocalFiles.read(selectedBlueprint);
+            final byte[] data = BlueprintToolClientPreviewPostProcessor.stripPreview(BlueprintToolLocalFiles.read(selectedBlueprint));
             final Vec3 target = lookTarget(player);
             setStatusKey("placing", selectedBlueprint.name());
             SableSchematicApiPackets.sendLoadRequest(selectedBlueprint.name(), target, data);
@@ -210,6 +253,37 @@ public final class BlueprintToolClientSession {
         return subLevels;
     }
 
+    public static List<BlueprintToolSubLevelGroup> subLevelGroups() {
+        final Map<UUID, List<BlueprintToolSubLevelEntry>> grouped = new LinkedHashMap<>();
+        for (final BlueprintToolSubLevelEntry entry : subLevels) {
+            grouped.computeIfAbsent(entry.groupId(), ignored -> new ArrayList<>()).add(entry);
+        }
+
+        final List<BlueprintToolSubLevelGroup> result = new ArrayList<>(grouped.size());
+        for (final Map.Entry<UUID, List<BlueprintToolSubLevelEntry>> group : grouped.entrySet()) {
+            final List<BlueprintToolSubLevelEntry> members = new ArrayList<>(group.getValue());
+            members.sort(BlueprintToolSubLevelGroup.MEMBER_ORDER);
+            result.add(new BlueprintToolSubLevelGroup(group.getKey(), members));
+        }
+
+        result.sort(subLevelGroupComparator());
+        return List.copyOf(result);
+    }
+
+    public static BlueprintToolSubLevelSortMode subLevelSortMode() {
+        return subLevelSortMode == null ? BlueprintToolSubLevelSortMode.NAME_DESC : subLevelSortMode;
+    }
+
+    public static void setSubLevelSortMode(final BlueprintToolSubLevelSortMode mode) {
+        final BlueprintToolSubLevelSortMode safeMode = mode == null ? BlueprintToolSubLevelSortMode.NAME_DESC : mode;
+        if (safeMode == subLevelSortMode()) {
+            return;
+        }
+
+        subLevelSortMode = safeMode;
+        subLevelRevision++;
+    }
+
     public static int subLevelRevision() {
         return subLevelRevision;
     }
@@ -261,6 +335,40 @@ public final class BlueprintToolClientSession {
         return selectedBlueprint;
     }
 
+    public static void openBlueprintPreview(final BlueprintToolLocalFiles.Entry entry) {
+        openedBlueprintPreview = entry;
+        openedBlueprintPreviewView = SableBlueprintPreview.View.TOP;
+        if (entry != null) {
+            selectBlueprint(entry);
+        }
+        blueprintPreviewRevision++;
+    }
+
+    public static void closeBlueprintPreview() {
+        openedBlueprintPreview = null;
+        blueprintPreviewRevision++;
+    }
+
+    public static BlueprintToolLocalFiles.Entry openedBlueprintPreview() {
+        return openedBlueprintPreview;
+    }
+
+    public static SableBlueprintPreview.View openedBlueprintPreviewView() {
+        return openedBlueprintPreviewView;
+    }
+
+    public static int blueprintPreviewRevision() {
+        return blueprintPreviewRevision;
+    }
+
+    public static void previousBlueprintPreviewView() {
+        cycleBlueprintPreviewView(-1);
+    }
+
+    public static void nextBlueprintPreviewView() {
+        cycleBlueprintPreviewView(1);
+    }
+
     public static Component status() {
         return status;
     }
@@ -292,9 +400,23 @@ public final class BlueprintToolClientSession {
             return;
         }
 
+        Minecraft.getInstance().execute(() -> finishSaveResult(name, message, data));
+    }
+
+    private static void finishSaveResult(final String name, final String message, final byte[] data) {
+        final Player player = Minecraft.getInstance().player;
+        byte[] saveData = data;
+        String detailMessage = message;
+
         try {
-            BlueprintToolLocalFiles.save(name, data);
-            setStatus(tr("status.saved", name), message);
+            saveData = BlueprintToolClientPreviewPostProcessor.attachClientPreview(data);
+        } catch (final IOException | RuntimeException e) {
+            detailMessage = appendDetail(message, "Preview skipped: " + e.getMessage());
+        }
+
+        try {
+            BlueprintToolLocalFiles.save(name, saveData);
+            setStatus(tr("status.saved", name), detailMessage);
             if (player != null) {
                 notify(player, status, ChatFormatting.GREEN);
             }
@@ -329,6 +451,22 @@ public final class BlueprintToolClientSession {
         setStatusKey("sublevels_loaded", entries.size());
     }
 
+    private static Comparator<BlueprintToolSubLevelGroup> subLevelGroupComparator() {
+        final Comparator<BlueprintToolSubLevelGroup> tieBreaker = Comparator
+                .comparing((BlueprintToolSubLevelGroup group) -> group.representativeName().toLowerCase(Locale.ROOT))
+                .thenComparing(group -> group.groupId().toString());
+
+        return switch (subLevelSortMode()) {
+            case NAME_DESC -> tieBreaker.reversed();
+            case DISTANCE -> Comparator
+                    .comparingDouble((BlueprintToolSubLevelGroup group) -> {
+                        final double distance = group.nearestDistance();
+                        return distance < 0.0 ? Double.MAX_VALUE : distance;
+                    })
+                    .thenComparing(tieBreaker);
+        };
+    }
+
     private static void clearSelectionSilently() {
         start = null;
         end = null;
@@ -336,6 +474,16 @@ public final class BlueprintToolClientSession {
 
     private static void clearLoadSelection() {
         selectedBlueprint = null;
+        openedBlueprintPreview = null;
+        blueprintPreviewRevision++;
+    }
+
+    private static void cycleBlueprintPreviewView(final int delta) {
+        final SableBlueprintPreview.View[] views = SableBlueprintPreview.View.values();
+        int index = openedBlueprintPreviewView.ordinal() + delta;
+        index = Math.floorMod(index, views.length);
+        openedBlueprintPreviewView = views[index];
+        blueprintPreviewRevision++;
     }
 
     private static Vec3 lookTarget(final Player player) {
@@ -354,6 +502,16 @@ public final class BlueprintToolClientSession {
     private static void setStatus(final Component value, final String detailMessage) {
         status = value == null ? tr("status.ready") : value;
         detail = detailMessage == null ? "" : detailMessage;
+    }
+
+    private static String appendDetail(final String base, final String extra) {
+        if (base == null || base.isBlank()) {
+            return extra == null ? "" : extra;
+        }
+        if (extra == null || extra.isBlank()) {
+            return base;
+        }
+        return base + " " + extra;
     }
 
     private static void notify(final Player player, final Component message, final ChatFormatting color) {

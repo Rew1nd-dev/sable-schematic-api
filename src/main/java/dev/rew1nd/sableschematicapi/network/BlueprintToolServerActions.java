@@ -8,6 +8,8 @@ import dev.rew1nd.sableschematicapi.sublevel.LoadedSubLevelTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.RuntimeSubLevelStaticService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelDirectoryService;
+import dev.rew1nd.sableschematicapi.sublevel.SubLevelGroupRecord;
+import dev.rew1nd.sableschematicapi.sublevel.SubLevelGroupService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelManagementService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelOperationResult;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelRecord;
@@ -249,18 +251,24 @@ public final class BlueprintToolServerActions {
     private static void sendSubLevelList(final ServerPlayer player) {
         final CompoundTag data = new CompoundTag();
         final ListTag list = new ListTag();
-        for (final SubLevelRecord record : SubLevelDirectoryService.listAll(player.getServer())) {
-            list.add(writeSubLevelEntry(player, record));
+        for (final SubLevelGroupRecord group : SubLevelGroupService.listAll(player.getServer())) {
+            for (final SubLevelRecord record : group.members()) {
+                list.add(writeSubLevelEntry(player, record, group));
+            }
         }
         data.put("sublevels", list);
         SableSchematicApiPackets.sendSubLevelList(player, data);
     }
 
-    private static CompoundTag writeSubLevelEntry(final ServerPlayer player, final SubLevelRecord record) {
+    private static CompoundTag writeSubLevelEntry(final ServerPlayer player,
+                                                  final SubLevelRecord record,
+                                                  final SubLevelGroupRecord group) {
         final CompoundTag tag = new CompoundTag();
         final Vector3dc pos = record.pose().position();
         tag.putString("dimension", record.dimension().location().toString());
         tag.putUUID("uuid", record.uuid());
+        tag.putUUID("group_id", group.groupId());
+        tag.putInt("group_size", group.members().size());
         tag.putString("name", record.name() == null ? "" : record.name());
         tag.putString("load_state", record.loadState().name());
         tag.putBoolean("static", RuntimeSubLevelStaticService.isStatic(record.dimension(), record.uuid()));

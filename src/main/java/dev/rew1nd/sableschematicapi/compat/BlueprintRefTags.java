@@ -1,4 +1,4 @@
-package dev.rew1nd.sableschematicapi.compat.simulated;
+package dev.rew1nd.sableschematicapi.compat;
 
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockRef;
 import net.minecraft.core.BlockPos;
@@ -9,7 +9,7 @@ import org.joml.Vector3dc;
 
 import java.util.Optional;
 
-final class BlueprintRefTags {
+public final class BlueprintRefTags {
     private static final String SUB_LEVEL_ID = "sub_level_id";
     private static final String LOCAL_POS = "local_pos";
     private static final String X = "x";
@@ -19,14 +19,14 @@ final class BlueprintRefTags {
     private BlueprintRefTags() {
     }
 
-    static CompoundTag write(final BlueprintBlockRef ref) {
+    public static CompoundTag write(final BlueprintBlockRef ref) {
         final CompoundTag tag = new CompoundTag();
         tag.putInt(SUB_LEVEL_ID, ref.subLevelId());
         tag.put(LOCAL_POS, writeBlockPos(ref.localPos()));
         return tag;
     }
 
-    static Optional<BlueprintBlockRef> read(final CompoundTag tag, final String key) {
+    public static Optional<BlueprintBlockRef> read(final CompoundTag tag, final String key) {
         if (!tag.contains(key, Tag.TAG_COMPOUND)) {
             return Optional.empty();
         }
@@ -39,7 +39,7 @@ final class BlueprintRefTags {
         return Optional.of(new BlueprintBlockRef(ref.getInt(SUB_LEVEL_ID), readBlockPos(ref.getCompound(LOCAL_POS))));
     }
 
-    static CompoundTag writeVector(final Vector3dc vector) {
+    public static CompoundTag writeVector(final Vector3dc vector) {
         final CompoundTag tag = new CompoundTag();
         tag.putDouble(X, vector.x());
         tag.putDouble(Y, vector.y());
@@ -47,7 +47,7 @@ final class BlueprintRefTags {
         return tag;
     }
 
-    static Optional<Vector3d> readVector(final CompoundTag tag, final String key) {
+    public static Optional<Vector3d> readVector(final CompoundTag tag, final String key) {
         if (!tag.contains(key, Tag.TAG_COMPOUND)) {
             return Optional.empty();
         }
@@ -55,7 +55,7 @@ final class BlueprintRefTags {
         return Optional.of(readVector(tag.getCompound(key)));
     }
 
-    static Vector3d readVector(final CompoundTag tag) {
+    public static Vector3d readVector(final CompoundTag tag) {
         return new Vector3d(tag.getDouble(X), tag.getDouble(Y), tag.getDouble(Z));
     }
 

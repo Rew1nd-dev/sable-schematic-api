@@ -6,6 +6,7 @@ import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3d;
 import dev.ryanhcode.sable.companion.math.Pose3d;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
+import dev.ryanhcode.sable.sublevel.storage.HoldingSubLevel;
 import dev.ryanhcode.sable.sublevel.storage.holding.GlobalSavedSubLevelPointer;
 import dev.ryanhcode.sable.sublevel.storage.holding.SavedSubLevelPointer;
 import dev.ryanhcode.sable.sublevel.storage.holding.SubLevelHoldingChunk;
@@ -132,13 +133,14 @@ public final class SubLevelDirectoryService {
                             regionPos.x * SubLevelRegionFile.SIDE_LENGTH + localX,
                             regionPos.z * SubLevelRegionFile.SIDE_LENGTH + localZ
                     );
-                    addStoredRecordsFromChunk(level, storage, chunkPos, records);
+                    addStoredRecordsFromChunk(level, container, storage, chunkPos, records);
                 }
             }
         }
     }
 
     private static void addStoredRecordsFromChunk(final ServerLevel level,
+                                                  final ServerSubLevelContainer container,
                                                   final SubLevelStorage storage,
                                                   final ChunkPos chunkPos,
                                                   final Map<UUID, SubLevelRecord> records) {
@@ -148,16 +150,24 @@ public final class SubLevelDirectoryService {
         }
 
         for (final SavedSubLevelPointer pointer : holdingChunk.getSubLevelPointers()) {
-            final SubLevelData data = storage.attemptLoadSubLevel(chunkPos, pointer);
-            if (data == null || records.containsKey(data.uuid())) {
+            final SubLevelData diskData = storage.attemptLoadSubLevel(chunkPos, pointer);
+            if (diskData == null || records.containsKey(diskData.uuid())) {
                 continue;
             }
 
-            final GlobalSavedSubLevelPointer globalPointer = new GlobalSavedSubLevelPointer(
+            SubLevelData data = diskData;
+            GlobalSavedSubLevelPointer globalPointer = new GlobalSavedSubLevelPointer(
                     chunkPos,
                     pointer.storageIndex(),
                     pointer.subLevelIndex()
             );
+            final HoldingSubLevel currentHolding = container.getHoldingChunkMap().getHoldingSubLevel(diskData.uuid());
+            if (currentHolding != null) {
+                data = currentHolding.data();
+                if (currentHolding.pointer() != null) {
+                    globalPointer = currentHolding.pointer();
+                }
+            }
 
             records.put(data.uuid(), new SubLevelRecord(
                     level.dimension(),

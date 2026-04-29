@@ -8,6 +8,8 @@ import java.util.UUID;
 
 public record BlueprintToolSubLevelEntry(String dimension,
                                          UUID uuid,
+                                         UUID groupId,
+                                         int groupSize,
                                          String name,
                                          String loadState,
                                          boolean staticLocked,
@@ -19,6 +21,8 @@ public record BlueprintToolSubLevelEntry(String dimension,
         return new BlueprintToolSubLevelEntry(
                 tag.getString("dimension"),
                 tag.getUUID("uuid"),
+                tag.hasUUID("group_id") ? tag.getUUID("group_id") : tag.getUUID("uuid"),
+                Math.max(1, tag.getInt("group_size")),
                 tag.contains("name", Tag.TAG_STRING) ? tag.getString("name") : "",
                 tag.getString("load_state"),
                 tag.getBoolean("static"),
