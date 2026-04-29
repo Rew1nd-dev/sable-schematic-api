@@ -24,6 +24,11 @@ public final class BlueprintLibraryToolMode implements BlueprintToolMode {
     }
 
     @Override
+    public void renderPreview(final Player player) {
+        BlueprintToolSelectionPreviewRenderers.render(player);
+    }
+
+    @Override
     public BlueprintToolInputResult handleInput(final BlueprintToolInputContext context) {
         return switch (context.intent()) {
             case ATTACK -> {

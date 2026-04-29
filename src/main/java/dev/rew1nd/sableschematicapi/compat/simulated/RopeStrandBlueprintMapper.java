@@ -5,6 +5,7 @@ import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockPlaceContext;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockRef;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockSaveContext;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintBlockMapper;
+import dev.rew1nd.sableschematicapi.compat.BlueprintRefTags;
 import dev.ryanhcode.sable.Sable;
 import dev.simulated_team.simulated.content.blocks.rope.rope_connector.RopeConnectorBlock;
 import dev.simulated_team.simulated.content.blocks.rope.strand.server.RopeAttachment;

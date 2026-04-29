@@ -16,6 +16,9 @@ import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 public final class BlueprintToolClientEvents {
+    private static boolean attackPressHandled;
+    private static boolean usePressHandled;
+
     private BlueprintToolClientEvents() {
     }
 
@@ -45,6 +48,11 @@ public final class BlueprintToolClientEvents {
         }
 
         if (event.isAttack() && holdingBlueprintTool(player, InteractionHand.MAIN_HAND)) {
+            if (!consumeAttackPress()) {
+                applyInputResult(event, BlueprintToolInputResult.consume(false));
+                return;
+            }
+
             final BlueprintToolInputIntent intent = player.isShiftKeyDown()
                     ? BlueprintToolInputIntent.SHIFT_ATTACK
                     : BlueprintToolInputIntent.ATTACK;
@@ -56,6 +64,11 @@ public final class BlueprintToolClientEvents {
             return;
         }
 
+        if (!consumeUsePress()) {
+            applyInputResult(event, BlueprintToolInputResult.consume(false));
+            return;
+        }
+
         final BlueprintToolInputIntent intent = player.isShiftKeyDown()
                 ? BlueprintToolInputIntent.SHIFT_USE
                 : BlueprintToolInputIntent.USE;
@@ -64,6 +77,8 @@ public final class BlueprintToolClientEvents {
 
     private static void onClientTick(final ClientTickEvent.Post event) {
         final Minecraft minecraft = Minecraft.getInstance();
+        updatePressGuards(minecraft);
+
         final Player player = minecraft.player;
         if (player == null || minecraft.screen != null || !holdingBlueprintTool(player)) {
             return;
@@ -72,6 +87,45 @@ public final class BlueprintToolClientEvents {
         while (BlueprintToolKeyMappings.OPEN_BLUEPRINT_TOOL.consumeClick()) {
             openUi();
         }
+
+        BlueprintToolClientSession.currentMode().renderPreview(player);
+    }
+
+    private static void updatePressGuards(final Minecraft minecraft) {
+        if (minecraft.screen != null) {
+            resetPressGuards();
+            return;
+        }
+
+        if (!minecraft.options.keyAttack.isDown()) {
+            attackPressHandled = false;
+        }
+        if (!minecraft.options.keyUse.isDown()) {
+            usePressHandled = false;
+        }
+    }
+
+    private static void resetPressGuards() {
+        attackPressHandled = false;
+        usePressHandled = false;
+    }
+
+    private static boolean consumeAttackPress() {
+        if (attackPressHandled) {
+            return false;
+        }
+
+        attackPressHandled = true;
+        return true;
+    }
+
+    private static boolean consumeUsePress() {
+        if (usePressHandled) {
+            return false;
+        }
+
+        usePressHandled = true;
+        return true;
     }
 
     private static void onRenderGuiPost(final RenderGuiEvent.Post event) {

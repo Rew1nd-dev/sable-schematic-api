@@ -12,6 +12,9 @@ public interface BlueprintToolMode {
 
     UIElement createPage(Player player);
 
+    default void renderPreview(final Player player) {
+    }
+
     default BlueprintToolInputResult handleInput(final BlueprintToolInputContext context) {
         return BlueprintToolInputResult.PASS;
     }

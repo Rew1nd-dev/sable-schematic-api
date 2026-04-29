@@ -128,6 +128,14 @@ Experimental blueprint and schematic API for Sable sub-levels, with remapping ho
     ordering="AFTER"
     side="BOTH"
 
+[[dependencies.${mod_id}]]
+    modId="drivebywire"
+    type="optional"
+    reason="Drive By Wire is a compatibility target for blueprint mapper experiments."
+    versionRange="${drivebywire_version_range}"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

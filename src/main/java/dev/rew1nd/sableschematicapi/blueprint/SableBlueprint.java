@@ -4,6 +4,7 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3d;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.ryanhcode.sable.companion.math.Pose3d;
 import dev.ryanhcode.sable.util.SableNBTUtils;
+import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -25,15 +26,26 @@ public class SableBlueprint {
     private final BoundingBox3d rootBounds;
     private final List<SubLevelData> subLevels;
     private final CompoundTag globalExtraData;
+    @Nullable
+    private final SableBlueprintPreview preview;
 
     public SableBlueprint(final Vector3dc origin,
                           final BoundingBox3d rootBounds,
                           final List<SubLevelData> subLevels,
                           final CompoundTag globalExtraData) {
+        this(origin, rootBounds, subLevels, globalExtraData, null);
+    }
+
+    public SableBlueprint(final Vector3dc origin,
+                          final BoundingBox3d rootBounds,
+                          final List<SubLevelData> subLevels,
+                          final CompoundTag globalExtraData,
+                          @Nullable final SableBlueprintPreview preview) {
         this.origin = new Vector3d(origin);
         this.rootBounds = new BoundingBox3d(rootBounds);
         this.subLevels = List.copyOf(subLevels);
         this.globalExtraData = globalExtraData.copy();
+        this.preview = preview;
     }
 
     public Vector3dc origin() {
@@ -50,6 +62,10 @@ public class SableBlueprint {
 
     public CompoundTag globalExtraData() {
         return this.globalExtraData.copy();
+    }
+
+    public @Nullable SableBlueprintPreview preview() {
+        return this.preview;
     }
 
     public boolean isEmpty() {
@@ -76,6 +92,9 @@ public class SableBlueprint {
         tag.put("origin", SableNBTUtils.writeVector3d(this.origin));
         tag.put("root_bounds", SableNBTUtils.writeBoundingBox(this.rootBounds));
         tag.put("global_extra_data", this.globalExtraData.copy());
+        if (this.preview != null) {
+            tag.put("preview", this.preview.save());
+        }
 
         for (final SubLevelData subLevel : this.subLevels) {
             subLevelTags.add(subLevel.save());
@@ -94,6 +113,14 @@ public class SableBlueprint {
         final Vector3d origin = SableNBTUtils.readVector3d(tag.getCompound("origin"));
         final BoundingBox3d rootBounds = SableNBTUtils.readBoundingBox(tag.getCompound("root_bounds"));
         final CompoundTag globalExtraData = tag.getCompound("global_extra_data");
+        SableBlueprintPreview preview = null;
+        if (tag.contains("preview", Tag.TAG_COMPOUND)) {
+            try {
+                preview = SableBlueprintPreview.load(tag.getCompound("preview"));
+            } catch (final RuntimeException ignored) {
+                preview = null;
+            }
+        }
         final List<SubLevelData> subLevels = new ObjectArrayList<>();
         final ListTag subLevelTags = tag.getList("sub_levels", Tag.TAG_COMPOUND);
 
@@ -101,7 +128,7 @@ public class SableBlueprint {
             subLevels.add(SubLevelData.load(subLevelTags.getCompound(i)));
         }
 
-        return new SableBlueprint(origin, rootBounds, subLevels, globalExtraData);
+        return new SableBlueprint(origin, rootBounds, subLevels, globalExtraData, preview);
     }
 
     public record BlockData(BlockPos localPos, int paletteId, int blockEntityDataId) {

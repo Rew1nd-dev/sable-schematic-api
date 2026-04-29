@@ -12,18 +12,27 @@ import com.lowdragmc.lowdraglib2.gui.ui.data.Vertical;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
+import com.lowdragmc.lowdraglib2.gui.ui.elements.Selector;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
+import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
 import com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager;
+import com.lowdragmc.lowdraglib2.gui.ui.utils.UIElementProvider;
+import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolMode;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolClientSession;
+import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolLocalPreviewCache;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolModes;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolLocalFiles;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSubLevelEntry;
+import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSubLevelGroup;
+import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSubLevelSortMode;
 import dev.vfyjxf.taffy.style.AlignItems;
 import dev.vfyjxf.taffy.style.FlexDirection;
 import dev.vfyjxf.taffy.style.TaffyPosition;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 
@@ -36,7 +45,7 @@ public final class BlueprintToolUiRenderer {
     private static final float ROOT_PADDING = 8;
     private static final float GAP = 4;
     private static final float MODE_BAR_WIDTH = 56;
-    private static final float CONTENT_WIDTH = 280;
+    private static final float CONTENT_WIDTH = 360;
     private static final float CONTENT_HEIGHT = 224;
     private static final float ROOT_WIDTH = MODE_BAR_WIDTH + CONTENT_WIDTH + GAP + ROOT_PADDING * 2;
     private static final float ROOT_HEIGHT = CONTENT_HEIGHT + ROOT_PADDING * 2;
@@ -46,6 +55,9 @@ public final class BlueprintToolUiRenderer {
     private static final float BUTTON_WIDTH = 70;
     private static final float RENAME_BUTTON_WIDTH = 44;
     private static final float TAB_HEIGHT = 22;
+    private static final float SCROLL_ROW_WIDTH = CONTENT_WIDTH - 12;
+    private static final float GROUP_PADDING = 3;
+    private static final float GROUP_INNER_WIDTH = SCROLL_ROW_WIDTH - GROUP_PADDING * 2;
 
     private BlueprintToolUiRenderer() {
     }
@@ -167,13 +179,15 @@ public final class BlueprintToolUiRenderer {
                 })
                 .addChildren(save, load);
 
+        final BlueprintPreviewDialog previewDialog = new BlueprintPreviewDialog();
         page.addChildren(
                 modeHeader(BlueprintToolModes.BLUEPRINT.label()),
                 toolbar,
                 boundLabel(BlueprintToolClientSession::selectionLabel),
-                localBlueprintList(player),
+                localBlueprintList(player, CONTENT_WIDTH, LIST_HEIGHT),
                 boundLabel(BlueprintToolClientSession::status),
-                dialog
+                dialog,
+                previewDialog
         );
         dialog.setVisible(false);
         dialog.setDisplay(false);
@@ -220,6 +234,16 @@ public final class BlueprintToolUiRenderer {
         });
         refresh.setOnClick(event -> BlueprintToolClientSession.requestSubLevelRefresh());
 
+        final Selector<BlueprintToolSubLevelSortMode> sort = new Selector<>();
+        sort.setCandidates(List.of(BlueprintToolSubLevelSortMode.values()));
+        sort.setCandidateUIProvider(UIElementProvider.text(BlueprintToolUiRenderer::subLevelSortText));
+        sort.setSelected(BlueprintToolClientSession.subLevelSortMode());
+        sort.setOnValueChanged(BlueprintToolClientSession::setSubLevelSortMode);
+        sort.layout(layout -> {
+            layout.width(CONTENT_WIDTH - BUTTON_WIDTH - GAP);
+            layout.height(ROW_HEIGHT);
+        });
+
         final UIElement toolbar = new UIElement()
                 .layout(layout -> {
                     layout.width(CONTENT_WIDTH);
@@ -227,7 +251,7 @@ public final class BlueprintToolUiRenderer {
                     layout.flexDirection(FlexDirection.ROW);
                     layout.gapAll(GAP);
                 })
-                .addChild(refresh);
+                .addChildren(refresh, sort);
 
         final SubLevelDetailDialog detailDialog = new SubLevelDetailDialog();
         page.addChildren(
@@ -240,16 +264,16 @@ public final class BlueprintToolUiRenderer {
         return page;
     }
 
-    private static ScrollerView localBlueprintList(final Player player) {
-        final ScrollerView scroller = new RefreshingBlueprintList(player);
+    private static ScrollerView localBlueprintList(final Player player, final float width, final float height) {
+        final ScrollerView scroller = new RefreshingBlueprintList(player, width);
         scroller.setId("sable_blueprint_local_list");
         scroller.layout(layout -> {
-            layout.width(CONTENT_WIDTH);
-            layout.height(LIST_HEIGHT);
+            layout.width(width);
+            layout.height(height);
         });
         scroller.style(style -> style.backgroundTexture(displayTexture()));
         scroller.viewContainer(container -> container.layout(layout -> {
-            layout.width(CONTENT_WIDTH - 10);
+            layout.width(width - 10);
             layout.heightAuto();
             layout.flexDirection(FlexDirection.COLUMN);
             layout.gapAll(2);
@@ -276,15 +300,25 @@ public final class BlueprintToolUiRenderer {
         return scroller;
     }
 
-    private static UIElement fileRow(final Player player, final BlueprintToolLocalFiles.Entry entry) {
+    private static UIElement fileRow(final Player player, final BlueprintToolLocalFiles.Entry entry, final float width) {
         final Button row = textButton(Component.literal(entry.name()));
         row.layout(layout -> {
-            layout.width(CONTENT_WIDTH - 12);
+            layout.width(width);
             layout.height(ROW_HEIGHT);
         });
-        row.setOnClick(event -> {
-            BlueprintToolClientSession.selectBlueprint(entry);
-            BlueprintToolClientSession.notifyStatus(player, ChatFormatting.AQUA);
+        row.addEventListener(UIEvents.MOUSE_DOWN, event -> {
+            if (event.button == 1) {
+                BlueprintToolClientSession.openBlueprintPreview(entry);
+                BlueprintToolClientSession.notifyStatus(player, ChatFormatting.AQUA);
+                event.stopPropagation();
+                return;
+            }
+
+            if (event.button == 0) {
+                BlueprintToolClientSession.selectBlueprint(entry);
+                BlueprintToolClientSession.notifyStatus(player, ChatFormatting.AQUA);
+                event.stopPropagation();
+            }
         });
         return row;
     }
@@ -293,7 +327,7 @@ public final class BlueprintToolUiRenderer {
         final boolean selected = entry.uuid().equals(BlueprintToolClientSession.selectedSubLevel());
         final Button row = textButton(subLevelRowText(entry));
         row.layout(layout -> {
-            layout.width(CONTENT_WIDTH - 12);
+            layout.width(GROUP_INNER_WIDTH);
             layout.height(ROW_HEIGHT);
         });
         if (selected) {
@@ -319,6 +353,42 @@ public final class BlueprintToolUiRenderer {
         return row;
     }
 
+    private static UIElement subLevelGroup(final Player player, final BlueprintToolSubLevelGroup group) {
+        final UIElement column = new UIElement()
+                .layout(layout -> {
+                    layout.width(SCROLL_ROW_WIDTH);
+                    layout.heightAuto();
+                    layout.paddingAll(GROUP_PADDING);
+                    layout.flexDirection(FlexDirection.COLUMN);
+                    layout.gapAll(2);
+                })
+                .style(style -> style.backgroundTexture(groupTexture()));
+
+        column.addChild(subLevelGroupHeader(group));
+        for (final BlueprintToolSubLevelEntry entry : group.members()) {
+            column.addChild(subLevelRow(player, entry));
+        }
+        return column;
+    }
+
+    private static UIElement subLevelGroupHeader(final BlueprintToolSubLevelGroup group) {
+        final Label label = bareLabel(Horizontal.LEFT);
+        label.setText(tr("ui.sublevel_group_header", group.members().size(), group.distanceLabel(), group.representativeId()));
+        label.layout(layout -> {
+            layout.width(GROUP_INNER_WIDTH);
+            layout.height(ROW_HEIGHT);
+        });
+        label.style(style -> style
+                .backgroundTexture(groupHeaderTexture())
+                .overflowVisible(false));
+        return label;
+    }
+
+    private static Component subLevelSortText(final BlueprintToolSubLevelSortMode mode) {
+        final BlueprintToolSubLevelSortMode safeMode = mode == null ? BlueprintToolSubLevelSortMode.NAME_DESC : mode;
+        return tr(safeMode.translationKey());
+    }
+
     private static Component subLevelRowText(final BlueprintToolSubLevelEntry entry) {
         final String staticMarker = entry.staticLocked() ? " static" : "";
         return Component.literal("%s [%s%s] %s".formatted(
@@ -329,11 +399,11 @@ public final class BlueprintToolUiRenderer {
         ));
     }
 
-    private static UIElement emptyRow() {
+    private static UIElement emptyRow(final float width) {
         final Label label = bareLabel(Horizontal.LEFT);
         label.setText(tr("ui.no_local_schematics"));
         label.layout(layout -> {
-            layout.width(CONTENT_WIDTH - 12);
+            layout.width(width);
             layout.height(ROW_HEIGHT);
         });
         return label;
@@ -343,7 +413,7 @@ public final class BlueprintToolUiRenderer {
         final Label label = bareLabel(Horizontal.LEFT);
         label.setText(tr("ui.no_sublevels"));
         label.layout(layout -> {
-            layout.width(CONTENT_WIDTH - 12);
+            layout.width(SCROLL_ROW_WIDTH);
             layout.height(ROW_HEIGHT);
         });
         return label;
@@ -515,6 +585,20 @@ public final class BlueprintToolUiRenderer {
                 .setStroke(1);
     }
 
+    private static IGuiTexture groupTexture() {
+        return SDFRectTexture.of(0xFFEAF4EA)
+                .setBorderColor(0xFF7C9B84)
+                .setRadius(2)
+                .setStroke(1);
+    }
+
+    private static IGuiTexture groupHeaderTexture() {
+        return SDFRectTexture.of(0xFFD7E8D7)
+                .setBorderColor(0xFF6F8F78)
+                .setRadius(2)
+                .setStroke(1);
+    }
+
     private static IGuiTexture selectedRowTexture() {
         return buttonTexture(0xFF657089, 0xFF253041);
     }
@@ -542,12 +626,208 @@ public final class BlueprintToolUiRenderer {
         }
     }
 
+    private static void drawLargePreviewTile(final GUIContext guiContext,
+                                             final SableBlueprintPreview preview,
+                                             final SableBlueprintPreview.View view,
+                                             final int x,
+                                             final int y,
+                                             final int size) {
+        guiContext.graphics.fill(x, y, x + size, y + size, 0xFFEFF4FA);
+
+        if (preview != null) {
+            final int resolution = preview.resolution();
+            final int[] pixels = preview.pixels(view);
+            if (pixels != null && pixels.length == resolution * resolution) {
+                for (int py = 0; py < size; py++) {
+                    final int sourceY = py * resolution / size;
+                    for (int px = 0; px < size; px++) {
+                        final int sourceX = px * resolution / size;
+                        final int color = pixels[sourceY * resolution + sourceX];
+                        if ((color >>> 24) != 0) {
+                            guiContext.graphics.fill(x + px, y + py, x + px + 1, y + py + 1, color);
+                        }
+                    }
+                }
+            }
+        }
+
+        drawBorder(guiContext, x, y, size, size, 0xFF748097);
+        drawFullViewLabel(guiContext, view, x, y);
+    }
+
+    private static void drawFullViewLabel(final GUIContext guiContext,
+                                          final SableBlueprintPreview.View view,
+                                          final int x,
+                                          final int y) {
+        final Font font = Minecraft.getInstance().font;
+        final String text = view.id().toUpperCase(Locale.ROOT);
+        final int labelWidth = font.width(text) + 4;
+        guiContext.graphics.fill(x + 1, y + 1, x + labelWidth, y + 10, 0xCCF8FAFC);
+        guiContext.graphics.drawString(font, text, x + 3, y + 2, 0xFF253041, false);
+    }
+
+    private static void drawBorder(final GUIContext guiContext,
+                                   final int x,
+                                   final int y,
+                                   final int width,
+                                   final int height,
+                                   final int color) {
+        guiContext.graphics.fill(x, y, x + width, y + 1, color);
+        guiContext.graphics.fill(x, y + height - 1, x + width, y + height, color);
+        guiContext.graphics.fill(x, y, x + 1, y + height, color);
+        guiContext.graphics.fill(x + width - 1, y, x + width, y + height, color);
+    }
+
+    private static final class BlueprintPreviewDialog extends UIElement {
+        private static final float CANVAS_HEIGHT = CONTENT_HEIGHT - 20 - 16 - ROW_HEIGHT * 2 - GAP * 2;
+
+        private BlueprintToolLocalFiles.Entry renderedEntry;
+        private SableBlueprintPreview.View renderedView;
+        private int renderedRevision = Integer.MIN_VALUE;
+
+        private BlueprintPreviewDialog() {
+            setId("sable_blueprint_preview_detail");
+            layout(layout -> {
+                layout.positionType(TaffyPosition.ABSOLUTE);
+                layout.left(0);
+                layout.top(20);
+                layout.width(CONTENT_WIDTH);
+                layout.height(CONTENT_HEIGHT - 20);
+                layout.paddingAll(8);
+                layout.flexDirection(FlexDirection.COLUMN);
+                layout.gapAll(GAP);
+            });
+            style(style -> style.backgroundTexture(dialogTexture()));
+            setVisible(false);
+            setDisplay(true);
+        }
+
+        @Override
+        public void screenTick() {
+            super.screenTick();
+            sync();
+        }
+
+        private void sync() {
+            final BlueprintToolLocalFiles.Entry entry = BlueprintToolClientSession.openedBlueprintPreview();
+            if (entry == null) {
+                setVisible(false);
+                this.renderedEntry = null;
+                this.renderedView = null;
+                this.renderedRevision = Integer.MIN_VALUE;
+                return;
+            }
+
+            setVisible(true);
+            final int currentRevision = BlueprintToolClientSession.blueprintPreviewRevision();
+            final SableBlueprintPreview.View view = BlueprintToolClientSession.openedBlueprintPreviewView();
+            if (entry.equals(this.renderedEntry) && view == this.renderedView && currentRevision == this.renderedRevision) {
+                return;
+            }
+
+            this.renderedEntry = entry;
+            this.renderedView = view;
+            this.renderedRevision = currentRevision;
+            rebuild(entry, view);
+        }
+
+        private void rebuild(final BlueprintToolLocalFiles.Entry entry, final SableBlueprintPreview.View view) {
+            clearAllChildren();
+
+            final Label title = detailLabel(Component.literal(entry.name() + " / " + view.id().toUpperCase(Locale.ROOT)));
+            final BlueprintPreviewCanvas canvas = new BlueprintPreviewCanvas(entry, view);
+            canvas.layout(layout -> {
+                layout.width(CONTENT_WIDTH - 16);
+                layout.height(CANVAS_HEIGHT);
+                layout.paddingAll(4);
+            });
+            canvas.style(style -> style.backgroundTexture(displayTexture()));
+
+            final Button previous = navButton(Component.literal("<"));
+            previous.setOnClick(event -> {
+                BlueprintToolClientSession.previousBlueprintPreviewView();
+                sync();
+            });
+
+            final Button next = navButton(Component.literal(">"));
+            next.setOnClick(event -> {
+                BlueprintToolClientSession.nextBlueprintPreviewView();
+                sync();
+            });
+
+            final Button close = textButton(tr("ui.close"));
+            close.layout(layout -> {
+                layout.width(CONTENT_WIDTH - 16 - 44 * 2 - GAP * 2);
+                layout.height(ROW_HEIGHT);
+            });
+            close.setOnClick(event -> {
+                BlueprintToolClientSession.closeBlueprintPreview();
+                sync();
+            });
+
+            final UIElement buttons = new UIElement()
+                    .layout(layout -> {
+                        layout.width(CONTENT_WIDTH - 16);
+                        layout.height(ROW_HEIGHT);
+                        layout.flexDirection(FlexDirection.ROW);
+                        layout.gapAll(GAP);
+                    })
+                    .addChildren(previous, next, close);
+
+            addChildren(title, canvas, buttons);
+        }
+
+        private Button navButton(final Component text) {
+            final Button button = textButton(text);
+            button.layout(layout -> {
+                layout.width(44);
+                layout.height(ROW_HEIGHT);
+            });
+            return button;
+        }
+
+        private Label detailLabel(final Component text) {
+            final Label label = bareLabel(Horizontal.LEFT);
+            label.setText(text);
+            label.layout(layout -> {
+                layout.width(CONTENT_WIDTH - 16);
+                layout.height(ROW_HEIGHT);
+            });
+            return label;
+        }
+    }
+
+    private static final class BlueprintPreviewCanvas extends UIElement {
+        private final BlueprintToolLocalFiles.Entry entry;
+        private final SableBlueprintPreview.View view;
+
+        private BlueprintPreviewCanvas(final BlueprintToolLocalFiles.Entry entry, final SableBlueprintPreview.View view) {
+            this.entry = entry;
+            this.view = view;
+        }
+
+        @Override
+        public void drawBackgroundAdditional(final GUIContext guiContext) {
+            final SableBlueprintPreview preview = BlueprintToolLocalPreviewCache.preview(this.entry);
+            final int x = Math.round(getContentX());
+            final int y = Math.round(getContentY());
+            final int width = Math.round(getContentWidth());
+            final int height = Math.round(getContentHeight());
+            final int size = Math.max(1, Math.min(width, height));
+            final int startX = x + Math.max(0, (width - size) / 2);
+            final int startY = y + Math.max(0, (height - size) / 2);
+            drawLargePreviewTile(guiContext, preview, this.view, startX, startY, size);
+        }
+    }
+
     private static final class RefreshingBlueprintList extends ScrollerView {
         private final Player player;
+        private final float rowWidth;
         private int revision = Integer.MIN_VALUE;
 
-        private RefreshingBlueprintList(final Player player) {
+        private RefreshingBlueprintList(final Player player, final float width) {
             this.player = player;
+            this.rowWidth = width - 12;
             refreshIfNeeded();
         }
 
@@ -571,12 +851,12 @@ public final class BlueprintToolUiRenderer {
             clearAllScrollViewChildren();
             final List<BlueprintToolLocalFiles.Entry> entries = BlueprintToolClientSession.localBlueprints();
             if (entries.isEmpty()) {
-                addScrollViewChild(emptyRow());
+                addScrollViewChild(emptyRow(this.rowWidth));
                 return;
             }
 
             for (final BlueprintToolLocalFiles.Entry entry : entries) {
-                addScrollViewChild(fileRow(this.player, entry));
+                addScrollViewChild(fileRow(this.player, entry, this.rowWidth));
             }
         }
     }
@@ -608,14 +888,14 @@ public final class BlueprintToolUiRenderer {
 
         private void rebuild() {
             clearAllScrollViewChildren();
-            final List<BlueprintToolSubLevelEntry> entries = BlueprintToolClientSession.subLevels();
-            if (entries.isEmpty()) {
+            final List<BlueprintToolSubLevelGroup> groups = BlueprintToolClientSession.subLevelGroups();
+            if (groups.isEmpty()) {
                 addScrollViewChild(emptySubLevelRow());
                 return;
             }
 
-            for (final BlueprintToolSubLevelEntry entry : entries) {
-                addScrollViewChild(subLevelRow(this.player, entry));
+            for (final BlueprintToolSubLevelGroup group : groups) {
+                addScrollViewChild(subLevelGroup(this.player, group));
             }
         }
     }
@@ -677,7 +957,9 @@ public final class BlueprintToolUiRenderer {
             final Button teleport = actionButton(tr("ui.sublevel_tp_player"));
             teleport.setOnClick(event -> BlueprintToolClientSession.requestTeleportPlayerToSubLevel(entry));
 
-            final Button bring = actionButton(tr("ui.sublevel_bring"));
+            final Button bring = actionButton(entry.groupSize() > 1
+                    ? tr("ui.sublevel_bring_group", entry.groupSize())
+                    : tr("ui.sublevel_bring"));
             bring.setOnClick(event -> BlueprintToolClientSession.requestBringSubLevel(entry));
 
             final Button toggleStatic = actionButton(entry.staticLocked()

@@ -35,6 +35,7 @@ Optional compatibility dependencies:
 - Create `6.0.10+`
 - Simulated Project `1.1.3+`
 - Create: Copycats+ `3.0.4+`
+- Drive By Wire `0.2.7+`
 
 Compatibility mappers and events are only registered when the corresponding optional mod is loaded.
 
@@ -73,6 +74,7 @@ Tool-based saving and loading also require OP permission, and the player must be
 ```text
 libs/create-aeronautics-1.1.3.jar
 libs/copycats.jar
+libs/drivebywire-0.2.7.jar
 ```
 
 These jars are only used for local compilation and development runs of optional compatibility code. They are not part of this project's source code and should not be bundled into this project's release jar.

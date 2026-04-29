@@ -6,6 +6,7 @@ import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintSaveSession;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintEvent;
 import dev.rew1nd.sableschematicapi.api.blueprint.SubLevelSaveFrame;
+import dev.rew1nd.sableschematicapi.compat.BlueprintRefTags;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.ryanhcode.sable.sublevel.SubLevel;

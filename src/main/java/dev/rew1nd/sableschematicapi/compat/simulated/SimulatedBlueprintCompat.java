@@ -21,6 +21,7 @@ public final class SimulatedBlueprintCompat {
         final RopeStrandBlueprintMapper ropeMapper = new RopeStrandBlueprintMapper();
         SableBlueprintMapperRegistry.register(SimBlockEntityTypes.SWIVEL_BEARING.get(), mapper);
         SableBlueprintMapperRegistry.register(SimBlockEntityTypes.SWIVEL_BEARING_LINK_BLOCK.get(), mapper);
+        SableBlueprintMapperRegistry.register(SimBlockEntityTypes.SPRING.get(), new SpringBlueprintMapper());
         SableBlueprintMapperRegistry.register(SimBlockEntityTypes.ROPE_WINCH.get(), ropeMapper);
         SableBlueprintMapperRegistry.register(SimBlockEntityTypes.ROPE_CONNECTOR.get(), ropeMapper);
         SableBlueprintMapperRegistry.register(SimEntityTypes.PLUNGER.get(), new LaunchedPlungerBlueprintMapper());
