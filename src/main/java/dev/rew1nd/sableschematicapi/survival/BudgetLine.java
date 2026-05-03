@@ -8,14 +8,19 @@ import net.minecraft.world.item.ItemStack;
  * @param item      the required item
  * @param required  how many are needed
  * @param available how many are currently in nearby inventories
+ * @param unlimited whether an unlimited material source satisfies this line
  */
-public record BudgetLine(ItemStack item, int required, int available) {
+public record BudgetLine(ItemStack item, int required, int available, boolean unlimited) {
+    public BudgetLine(final ItemStack item, final int required, final int available) {
+        this(item, required, available, false);
+    }
+
     public BudgetLine {
         item = item.copyWithCount(1);
     }
 
     public boolean satisfied() {
-        return this.available >= this.required;
+        return this.unlimited || this.available >= this.required;
     }
 
     public ItemStack displayStack() {

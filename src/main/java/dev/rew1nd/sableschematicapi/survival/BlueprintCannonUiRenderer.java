@@ -37,6 +37,15 @@ public final class BlueprintCannonUiRenderer {
     private static final float ROW_HEIGHT = 14;
     private static final float SLOT_SIZE = 18;
     private static final float PLAYER_INVENTORY_HEIGHT = SLOT_SIZE * 4 + 5;
+    private static final float INNER_GAP = 2;
+    private static final float PANEL_PADDING = 4;
+    private static final float BUDGET_PANEL_PADDING = 3;
+    private static final float STATUS_PANEL_HEIGHT = ROW_HEIGHT * 4 + INNER_GAP * 3 + PANEL_PADDING * 2;
+    private static final float BLUEPRINT_PANEL_HEIGHT = ROW_HEIGHT + SLOT_SIZE + INNER_GAP + PANEL_PADDING * 2;
+    private static final float PLAYER_INVENTORY_PANEL_HEIGHT = ROW_HEIGHT + PLAYER_INVENTORY_HEIGHT + INNER_GAP + PANEL_PADDING * 2;
+    private static final float RIGHT_PANEL_HEIGHT = ROW_HEIGHT + STATUS_PANEL_HEIGHT + BLUEPRINT_PANEL_HEIGHT + PLAYER_INVENTORY_PANEL_HEIGHT + GAP * 3;
+    private static final float BUDGET_LIST_HEIGHT = RIGHT_PANEL_HEIGHT - ROW_HEIGHT - GAP - BUDGET_PANEL_PADDING * 2;
+    private static final float BUDGET_ROW_WIDTH = LEFT_PANEL_WIDTH - BUDGET_PANEL_PADDING * 2 - 10;
     private static final int TEXT_COLOR = ColorPattern.WHITE.color;
     private static final int MUTED_TEXT_COLOR = ColorPattern.LIGHT_GRAY.color;
     private static final int ROOT_COLOR = ColorPattern.BLACK.color;
@@ -84,7 +93,6 @@ public final class BlueprintCannonUiRenderer {
                 .layout(layout -> {
                     layout.width(LEFT_PANEL_WIDTH);
                     layout.heightAuto();
-                    layout.flex(1);
                     layout.flexDirection(FlexDirection.COLUMN);
                     layout.alignItems(AlignItems.STRETCH);
                     layout.gapAll(GAP);
@@ -109,19 +117,17 @@ public final class BlueprintCannonUiRenderer {
             .setId("blueprint_cannon_budget_panel")
             .layout(layout -> {
                 layout.widthAuto();
-                layout.heightAuto();
-                layout.flex(1);
+                layout.height(BUDGET_LIST_HEIGHT + BUDGET_PANEL_PADDING * 2);
                 layout.flexDirection(FlexDirection.COLUMN);
-                layout.gapAll(2);
-                layout.paddingAll(3);
+                layout.gapAll(0);
+                layout.paddingAll(BUDGET_PANEL_PADDING);
             })
             .style(style -> style.backgroundTexture(displayBackground()));
 
         final RefreshableBudgetList budgetList = new RefreshableBudgetList(blockEntity);
         budgetList.layout(layout -> {
             layout.widthAuto();
-            layout.heightAuto();
-            layout.flex(1);
+            layout.height(BUDGET_LIST_HEIGHT);
         });
 
         panel.addChildren(
@@ -423,7 +429,7 @@ public final class BlueprintCannonUiRenderer {
             this.blockEntity = blockEntity;
             this.setId("blueprint_cannon_budget_list");
             this.viewContainer(container -> container.layout(layout -> {
-                layout.width(LEFT_PANEL_WIDTH - 10);
+                layout.width(BUDGET_ROW_WIDTH);
                 layout.heightAuto();
                 layout.flexDirection(FlexDirection.COLUMN);
                 layout.gapAll(1);
@@ -512,14 +518,14 @@ public final class BlueprintCannonUiRenderer {
             final boolean satisfied = line.satisfied();
             final int color = satisfied ? 0xFF_55FF55 : TEXT_COLOR;
             final int displayCount = Math.min(line.available(), line.required());
-            final String countText = displayCount + "/" + line.required();
+            final String countText = line.unlimited() ? "\u221E/" + line.required() : displayCount + "/" + line.required();
             Component nameText = line.item().getHoverName();
 
             Label nameLabel = createLabel(nameText, color);
 
             // countLabel needs an explicit width; adaptiveWidth is unreliable in flex containers
             final Label countLabel = new Label();
-            final int countWidth = Math.min(countText.length() * 5 + 8, 32);
+            final int countWidth = Math.min(countText.length() * 5 + 8, line.unlimited() ? 42 : 32);
             countLabel.setText(Component.literal(countText));
             countLabel.textStyle(style -> style
                     .fontSize(7)

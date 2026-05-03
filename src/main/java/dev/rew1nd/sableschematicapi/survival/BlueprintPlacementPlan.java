@@ -52,6 +52,21 @@ public final class BlueprintPlacementPlan {
         return new BlueprintPlacementPlan(NO_BASIS, new Vector3d(origin.x, origin.y, origin.z), BoundingBox3d.EMPTY, poses);
     }
 
+    public static BlueprintPlacementPlan forLookTarget(final SableBlueprint blueprint,
+                                                       final Vec3 hitPoint,
+                                                       final double spacing) {
+        final List<SableBlueprint.SubLevelData> subLevels = blueprint.subLevels();
+        final Vector3d target = new Vector3d(hitPoint.x, hitPoint.y + spacing, hitPoint.z);
+        if (subLevels.isEmpty()) {
+            return empty(target);
+        }
+
+        final CanonicalLayout layout = canonicalLayout(subLevels);
+        final double y0 = Math.max(1.0, layout.height()) * 0.5;
+        target.y = hitPoint.y + y0 + spacing;
+        return anchoredToBasisAabbCenter(subLevels, layout, target);
+    }
+
     public static BlueprintPlacementPlan forCannon(final SableBlueprint blueprint,
                                                    final BlockPos cannonPos,
                                                    final BlueprintBuildProgress progress,
@@ -59,23 +74,47 @@ public final class BlueprintPlacementPlan {
         final List<SableBlueprint.SubLevelData> subLevels = blueprint.subLevels();
         if (subLevels.isEmpty()) {
             final Vector3d origin = new Vector3d(cannonPos.getX() + 0.5, cannonPos.getY() + 1.0 + padding, cannonPos.getZ() + 0.5);
-            return new BlueprintPlacementPlan(NO_BASIS, origin, new BoundingBox3d(origin.x, origin.y, origin.z, origin.x, origin.y, origin.z), Map.of());
+            return empty(origin);
         }
 
-        final SableBlueprint.SubLevelData basis = selectBasis(subLevels);
-        final BoundingBox3d canonicalBounds = canonicalBounds(subLevels, basis);
-        final BlueprintBuildProgress.PlacementAnchor anchor = resolveAnchor(progress, basis, cannonPos, canonicalBounds, padding);
-        final Vector3d targetCenter = anchor.targetCenter();
-        final Vector3d canonicalCenter = center(canonicalBounds);
-        final Vector3d offset = targetCenter.sub(canonicalCenter);
+        final CanonicalLayout layout = canonicalLayout(subLevels);
+        final BlueprintBuildProgress.PlacementAnchor anchor = resolveAnchor(progress, layout.basis(), cannonPos, layout.bounds(), padding);
+        return anchoredToCanonicalBoundsCenter(subLevels, layout, anchor.targetCenter());
+    }
 
+    private static BlueprintPlacementPlan empty(final Vector3dc origin) {
+        return new BlueprintPlacementPlan(
+                NO_BASIS,
+                origin,
+                new BoundingBox3d(origin.x(), origin.y(), origin.z(), origin.x(), origin.y(), origin.z()),
+                Map.of()
+        );
+    }
+
+    private static BlueprintPlacementPlan anchoredToBasisAabbCenter(final List<SableBlueprint.SubLevelData> subLevels,
+                                                                    final CanonicalLayout layout,
+                                                                    final Vector3dc targetAabbCenter) {
+        final Vector3d offset = new Vector3d(targetAabbCenter).sub(layout.basisAabbCenter());
+        return withOffset(subLevels, layout, offset);
+    }
+
+    private static BlueprintPlacementPlan anchoredToCanonicalBoundsCenter(final List<SableBlueprint.SubLevelData> subLevels,
+                                                                          final CanonicalLayout layout,
+                                                                          final Vector3dc targetCenter) {
+        final Vector3d offset = new Vector3d(targetCenter).sub(center(layout.bounds()));
+        return withOffset(subLevels, layout, offset);
+    }
+
+    private static BlueprintPlacementPlan withOffset(final List<SableBlueprint.SubLevelData> subLevels,
+                                                     final CanonicalLayout layout,
+                                                     final Vector3dc offset) {
         final Map<Integer, Pose3d> poses = new LinkedHashMap<>();
         for (final SableBlueprint.SubLevelData entry : subLevels) {
-            poses.put(entry.id(), cannonPose(entry, basis, offset));
+            poses.put(entry.id(), cannonPose(entry, layout.basis(), offset));
         }
 
-        final BoundingBox3d worldBounds = new BoundingBox3d(canonicalBounds).move(offset.x, offset.y, offset.z);
-        return new BlueprintPlacementPlan(basis.id(), offset, worldBounds, poses);
+        final BoundingBox3d worldBounds = new BoundingBox3d(layout.bounds()).move(offset.x(), offset.y(), offset.z());
+        return new BlueprintPlacementPlan(layout.basis().id(), offset, worldBounds, poses);
     }
 
     public int basisSubLevelId() {
@@ -167,6 +206,11 @@ public final class BlueprintPlacementPlan {
         return (long) Math.max(width, 0) * Math.max(height, 0) * Math.max(depth, 0);
     }
 
+    private static CanonicalLayout canonicalLayout(final List<SableBlueprint.SubLevelData> subLevels) {
+        final SableBlueprint.SubLevelData basis = selectBasis(subLevels);
+        return new CanonicalLayout(basis, canonicalBounds(subLevels, basis), localAabbCenter(basis));
+    }
+
     private static BoundingBox3d canonicalBounds(final List<SableBlueprint.SubLevelData> subLevels,
                                                  final SableBlueprint.SubLevelData basis) {
         final BoundsBuilder builder = new BoundsBuilder();
@@ -208,12 +252,48 @@ public final class BlueprintPlacementPlan {
         }
     }
 
+    private static Vector3d localAabbCenter(final SableBlueprint.SubLevelData entry) {
+        final BoundingBox3i bounds = entry.localBounds();
+        if (bounds == BoundingBox3i.EMPTY || bounds.volume() <= 0) {
+            return new Vector3d();
+        }
+
+        return new Vector3d(
+                (bounds.minX() + bounds.maxX() + 1.0) * 0.5,
+                (bounds.minY() + bounds.maxY() + 1.0) * 0.5,
+                (bounds.minZ() + bounds.maxZ() + 1.0) * 0.5
+        );
+    }
+
     private static Vector3d center(final BoundingBox3d bounds) {
         return new Vector3d(
                 (bounds.minX() + bounds.maxX()) * 0.5,
                 (bounds.minY() + bounds.maxY()) * 0.5,
                 (bounds.minZ() + bounds.maxZ()) * 0.5
         );
+    }
+
+    private record CanonicalLayout(SableBlueprint.SubLevelData basis,
+                                   BoundingBox3d bounds,
+                                   Vector3d basisAabbCenter) {
+        private CanonicalLayout {
+            bounds = new BoundingBox3d(bounds);
+            basisAabbCenter = new Vector3d(basisAabbCenter);
+        }
+
+        private double height() {
+            return this.bounds.maxY() - this.bounds.minY();
+        }
+
+        @Override
+        public BoundingBox3d bounds() {
+            return new BoundingBox3d(this.bounds);
+        }
+
+        @Override
+        public Vector3d basisAabbCenter() {
+            return new Vector3d(this.basisAabbCenter);
+        }
     }
 
     private static final class BoundsBuilder {
