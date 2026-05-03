@@ -2,6 +2,10 @@ package dev.rew1nd.sableschematicapi.tool.client;
 
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
+import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolInputIntent;
+import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolInputResult;
+import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolKeyMappings;
+import dev.rew1nd.sableschematicapi.tool.client.session.BlueprintToolClientSession;
 import dev.rew1nd.sableschematicapi.tool.ui.BlueprintToolUiRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;

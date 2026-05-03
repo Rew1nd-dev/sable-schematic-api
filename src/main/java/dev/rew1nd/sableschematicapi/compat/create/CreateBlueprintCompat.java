@@ -4,6 +4,7 @@ import com.simibubi.create.AllEntityTypes;
 import dev.rew1nd.sableschematicapi.SableSchematicApi;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintEventRegistry;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintMapperRegistry;
+import dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessRegistry;
 
 public final class CreateBlueprintCompat {
     private static boolean registered;
@@ -23,6 +24,15 @@ public final class CreateBlueprintCompat {
         SableBlueprintMapperRegistry.register(AllEntityTypes.CARRIAGE_CONTRAPTION.get(), mapper);
         SableBlueprintMapperRegistry.register(AllEntityTypes.SUPER_GLUE.get(), new CreateSuperGlueEntityMapper());
         SableBlueprintEventRegistry.register(new CreateSuperGlueBlueprintEvent());
+
+        // Typed post-process operations for survival material costs
+        BlueprintPostProcessRegistry.registerParser(
+                ContraptionPlaceParser.SIDECAR_ID, new ContraptionPlaceParser());
+        BlueprintPostProcessRegistry.registerMapper(
+                ContraptionPlaceOperation.TYPE, new ContraptionPlaceMapper());
+        BlueprintPostProcessRegistry.registerCost(
+                ContraptionPlaceOperation.TYPE, new ContraptionPlaceCost());
+
         registered = true;
 
         SableSchematicApi.LOGGER.info("Registered Create blueprint compatibility mappers");

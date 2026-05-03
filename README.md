@@ -19,6 +19,7 @@ Version `0.1.0` is still a draft API. It is suitable for compatibility testing a
 - Simulated Project compatibility:
   - Saves and restores swivel-bearing / plate connections.
   - Saves and restores rope-winch / rope-connector rope strands.
+  - Reuses Physics Staff persisted locks for the blueprint tool's static sub-level mode.
   - Skips temporary launched plunger entities to avoid saving invalid runtime state.
 
 ## Versions And Dependencies

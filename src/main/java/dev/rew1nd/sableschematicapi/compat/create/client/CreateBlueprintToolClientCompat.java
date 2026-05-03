@@ -1,7 +1,8 @@
 package dev.rew1nd.sableschematicapi.compat.create.client;
 
 import dev.rew1nd.sableschematicapi.SableSchematicApi;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSelectionPreviewRenderers;
+import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolPreviewEntityRenderers;
+import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolSelectionPreviewRenderers;
 
 public final class CreateBlueprintToolClientCompat {
     private static boolean registered;
@@ -15,6 +16,7 @@ public final class CreateBlueprintToolClientCompat {
         }
 
         BlueprintToolSelectionPreviewRenderers.register(CreateBlueprintToolSelectionRenderer.INSTANCE);
+        BlueprintToolPreviewEntityRenderers.register(CreateContraptionPreviewEntityRenderer.INSTANCE);
         registered = true;
         SableSchematicApi.LOGGER.info("Registered Create blueprint tool client compatibility");
     }

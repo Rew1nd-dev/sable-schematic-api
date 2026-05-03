@@ -13,6 +13,7 @@ import dev.rew1nd.sableschematicapi.sublevel.SubLevelGroupService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelManagementService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelOperationResult;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelRecord;
+import dev.rew1nd.sableschematicapi.survival.BlueprintTableUploadHandler;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
@@ -23,6 +24,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -45,6 +47,7 @@ public final class BlueprintToolServerActions {
     public static final ResourceLocation SUBLEVEL_BRING = SableSchematicApi.id("blueprint_tool/sublevel_bring");
     public static final ResourceLocation SUBLEVEL_TOGGLE_STATIC = SableSchematicApi.id("blueprint_tool/sublevel_toggle_static");
     public static final ResourceLocation SUBLEVEL_RENAME = SableSchematicApi.id("blueprint_tool/sublevel_rename");
+    public static final ResourceLocation BLUEPRINT_TABLE_UPLOAD = SableSchematicApi.id("blueprint_table/upload");
 
     private static final int MAX_NAME_LENGTH = 128;
     private static final double MAX_DELETE_DISTANCE = 96.0;
@@ -66,6 +69,7 @@ public final class BlueprintToolServerActions {
         register(SUBLEVEL_BRING, BlueprintToolServerActions::handleBringSubLevel);
         register(SUBLEVEL_TOGGLE_STATIC, BlueprintToolServerActions::handleToggleSubLevelStatic);
         register(SUBLEVEL_RENAME, BlueprintToolServerActions::handleRenameSubLevel);
+        register(BLUEPRINT_TABLE_UPLOAD, BlueprintToolServerActions::handleBlueprintTableUpload);
     }
 
     public static void register(final ResourceLocation id, final BlueprintToolServerAction action) {
@@ -271,7 +275,7 @@ public final class BlueprintToolServerActions {
         tag.putInt("group_size", group.members().size());
         tag.putString("name", record.name() == null ? "" : record.name());
         tag.putString("load_state", record.loadState().name());
-        tag.putBoolean("static", RuntimeSubLevelStaticService.isStatic(record.dimension(), record.uuid()));
+        tag.putBoolean("static", RuntimeSubLevelStaticService.isStatic(player.getServer(), record.dimension(), record.uuid()));
         tag.putDouble("x", pos.x());
         tag.putDouble("y", pos.y());
         tag.putDouble("z", pos.z());
@@ -337,5 +341,23 @@ public final class BlueprintToolServerActions {
     private static Vec3 readVec3(final CompoundTag data, final String key) {
         final CompoundTag tag = data.getCompound(key);
         return new Vec3(tag.getDouble("x"), tag.getDouble("y"), tag.getDouble("z"));
+    }
+
+    private static void handleBlueprintTableUpload(final ServerPlayer player, final CompoundTag data) {
+        final String name = data.getString("name");
+        final byte[] compressedData = data.getByteArray("data");
+        final byte[] hash = data.getByteArray("hash");
+
+        if (compressedData.length == 0 || compressedData.length > SableSchematicApiPackets.MAX_BLUEPRINT_BYTES) {
+            SableSchematicApiPackets.notify(player, SableSchematicApiPackets.tr("status.invalid_upload"), ChatFormatting.RED);
+            return;
+        }
+
+        final boolean ok = BlueprintTableUploadHandler.handleUpload(player, name, compressedData, hash);
+        if (ok) {
+            SableSchematicApiPackets.notify(player, Component.translatable("sable_schematic_api.blueprint_table.ui.uploaded", name), ChatFormatting.GREEN);
+        } else {
+            SableSchematicApiPackets.notify(player, Component.translatable("sable_schematic_api.blueprint_table.ui.upload_failed"), ChatFormatting.RED);
+        }
     }
 }

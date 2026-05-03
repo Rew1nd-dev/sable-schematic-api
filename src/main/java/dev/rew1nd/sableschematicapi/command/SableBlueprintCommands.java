@@ -6,8 +6,13 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
+import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintRootFiles;
 import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolResult;
 import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolService;
+import dev.rew1nd.sableschematicapi.survival.BlueprintDataItem;
+import dev.rew1nd.sableschematicapi.survival.BlueprintPayloads;
+import dev.rew1nd.sableschematicapi.survival.BlueprintServerFiles;
 import dev.rew1nd.sableschematicapi.sublevel.LoadedSubLevelTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelDirectoryService;
@@ -22,6 +27,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.joml.Vector3dc;
@@ -62,6 +68,24 @@ public final class SableBlueprintCommands {
         }
         return builder.buildFuture();
     };
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_ROOT_BLUEPRINTS = (ctx, builder) -> {
+        final MinecraftServer server = ctx.getSource().getServer();
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return SableBlueprintRootFiles.list(server);
+            } catch (final IOException e) {
+                return java.util.Set.<String>of();
+            }
+        }, Util.backgroundExecutor()).thenCompose(names -> {
+            final String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+            for (final String name : names) {
+                if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                    builder.suggest(name);
+                }
+            }
+            return builder.buildFuture();
+        });
+    };
 
     private SableBlueprintCommands() {
     }
@@ -82,6 +106,10 @@ public final class SableBlueprintCommands {
                         .then(Commands.argument("name", StringArgumentType.string())
                                 .suggests(SUGGEST_BLUEPRINTS)
                                 .executes(SableBlueprintCommands::loadSchematic)))
+                .then(Commands.literal("survival_item")
+                        .then(Commands.argument("name", StringArgumentType.string())
+                                .suggests(SUGGEST_ROOT_BLUEPRINTS)
+                                .executes(SableBlueprintCommands::giveSurvivalBlueprint)))
                 .then(Commands.literal("sublevels")
                         .then(Commands.literal("list")
                                 .executes(SableBlueprintCommands::listSubLevels))
@@ -116,6 +144,30 @@ public final class SableBlueprintCommands {
         final BlueprintToolResult result = BlueprintToolService.load(source.getServer(), level, origin, name);
         sendResult(source, result);
         return result.affectedSubLevels();
+    }
+
+    private static int giveSurvivalBlueprint(final CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        final CommandSourceStack source = ctx.getSource();
+        final ServerPlayer player = source.getPlayerOrException();
+        final String name = StringArgumentType.getString(ctx, "name");
+
+        try {
+            final SableBlueprint blueprint = SableBlueprintRootFiles.load(source.getServer(), name);
+            final byte[] data = BlueprintPayloads.writeCompressed(blueprint);
+            final byte[] hash = BlueprintPayloads.sha256(data);
+            final var summary = dev.rew1nd.sableschematicapi.api.blueprint.survival.BlueprintSummary.of(blueprint);
+            BlueprintServerFiles.save(player.serverLevel(), player.getName().getString(), name, data);
+            final ItemStack stack = BlueprintDataItem.createFromServerFile(
+                    player.getName().getString(), name, hash, summary);
+            if (!player.getInventory().add(stack)) {
+                player.drop(stack, false);
+            }
+            source.sendSuccess(() -> Component.literal("Created survival blueprint item from Sable-Schematics: " + name), true);
+            return 1;
+        } catch (final IOException | RuntimeException e) {
+            source.sendFailure(Component.literal("Failed to create survival blueprint item: " + e.getMessage()));
+            return 0;
+        }
     }
 
     private static void sendResult(final CommandSourceStack source, final BlueprintToolResult result) {

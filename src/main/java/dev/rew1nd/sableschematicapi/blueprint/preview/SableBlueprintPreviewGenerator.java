@@ -117,14 +117,13 @@ public final class SableBlueprintPreviewGenerator {
                                     final int resolution) {
         final int[] pixels = new int[resolution * resolution];
         final double[] depth = new double[pixels.length];
-        Arrays.fill(depth, Double.NEGATIVE_INFINITY);
+        Arrays.fill(depth, Double.POSITIVE_INFINITY);
 
-        final double minU = boundsMinU(bounds, view);
-        final double maxU = boundsMaxU(bounds, view);
-        final double minV = boundsMinV(bounds, view);
-        final double maxV = boundsMaxV(bounds, view);
-        final double rangeU = Math.max(maxU - minU, 1.0);
-        final double rangeV = Math.max(maxV - minV, 1.0);
+        final ViewAxes axes = viewAxes(view);
+        final AxisRange uRange = boundsRange(bounds, axes.right());
+        final AxisRange vRange = boundsRange(bounds, axes.up());
+        final double rangeU = Math.max(uRange.size(), 1.0);
+        final double rangeV = Math.max(vRange.size(), 1.0);
         final double drawable = Math.max(1.0, resolution - PADDING * 2.0);
         final double scale = drawable / Math.max(rangeU, rangeV);
         final double offsetU = (resolution - rangeU * scale) * 0.5;
@@ -132,17 +131,15 @@ public final class SableBlueprintPreviewGenerator {
         final double brightness = brightness(view);
 
         for (final ProjectedBlock block : blocks) {
-            final double blockMinU = blockMinU(block, view);
-            final double blockMaxU = blockMaxU(block, view);
-            final double blockMinV = blockMinV(block, view);
-            final double blockMaxV = blockMaxV(block, view);
-            final double blockDepth = blockDepth(block, view);
+            final AxisRange blockU = blockRange(block, axes.right());
+            final AxisRange blockV = blockRange(block, axes.up());
+            final AxisRange blockDepthRange = blockRange(block, axes.forward());
             final int color = shade(block.color(), brightness);
 
-            int x0 = clamp((int) Math.floor(offsetU + (blockMinU - minU) * scale), 0, resolution - 1);
-            int x1 = clamp((int) Math.ceil(offsetU + (blockMaxU - minU) * scale), 0, resolution);
-            int y0 = clamp((int) Math.floor(offsetV + (maxV - blockMaxV) * scale), 0, resolution - 1);
-            int y1 = clamp((int) Math.ceil(offsetV + (maxV - blockMinV) * scale), 0, resolution);
+            int x0 = clamp((int) Math.floor(offsetU + (blockU.min() - uRange.min()) * scale), 0, resolution - 1);
+            int x1 = clamp((int) Math.ceil(offsetU + (blockU.max() - uRange.min()) * scale), 0, resolution);
+            int y0 = clamp((int) Math.floor(offsetV + (vRange.max() - blockV.max()) * scale), 0, resolution - 1);
+            int y1 = clamp((int) Math.ceil(offsetV + (vRange.max() - blockV.min()) * scale), 0, resolution);
 
             if (x1 <= x0) {
                 x1 = Math.min(resolution, x0 + 1);
@@ -155,8 +152,8 @@ public final class SableBlueprintPreviewGenerator {
                 final int row = y * resolution;
                 for (int x = x0; x < x1; x++) {
                     final int index = row + x;
-                    if (blockDepth >= depth[index]) {
-                        depth[index] = blockDepth;
+                    if (blockDepthRange.min() <= depth[index]) {
+                        depth[index] = blockDepthRange.min();
                         pixels[index] = color;
                     }
                 }
@@ -176,82 +173,59 @@ public final class SableBlueprintPreviewGenerator {
         }
     }
 
-    private static double boundsMinU(final BoundingBox3d bounds, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM, FRONT, BACK -> bounds.minX();
-            case RIGHT, LEFT -> bounds.minZ();
-        };
+    private static ViewAxes viewAxes(final SableBlueprintPreview.View view) {
+        final Vector3d cameraOffset = new Vector3d(view.xSign(), 1.0, view.zSign());
+        final Vector3d forward = new Vector3d(cameraOffset).negate().normalize();
+        final Vector3d up = new Vector3d(0.0, 1.0, 0.0)
+                .sub(new Vector3d(forward).mul(forward.y()))
+                .normalize();
+        final Vector3d right = new Vector3d(forward).cross(up).normalize();
+        return new ViewAxes(right, up, forward);
     }
 
-    private static double boundsMaxU(final BoundingBox3d bounds, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM, FRONT, BACK -> bounds.maxX();
-            case RIGHT, LEFT -> bounds.maxZ();
-        };
+    private static AxisRange boundsRange(final BoundingBox3d bounds, final Vector3d axis) {
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
+
+        for (final double x : new double[]{bounds.minX(), bounds.maxX()}) {
+            for (final double y : new double[]{bounds.minY(), bounds.maxY()}) {
+                for (final double z : new double[]{bounds.minZ(), bounds.maxZ()}) {
+                    final double value = x * axis.x() + y * axis.y() + z * axis.z();
+                    min = Math.min(min, value);
+                    max = Math.max(max, value);
+                }
+            }
+        }
+
+        return new AxisRange(min, max);
     }
 
-    private static double boundsMinV(final BoundingBox3d bounds, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM -> bounds.minZ();
-            case FRONT, BACK, RIGHT, LEFT -> bounds.minY();
-        };
-    }
+    private static AxisRange blockRange(final ProjectedBlock block, final Vector3d axis) {
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
 
-    private static double boundsMaxV(final BoundingBox3d bounds, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM -> bounds.maxZ();
-            case FRONT, BACK, RIGHT, LEFT -> bounds.maxY();
-        };
-    }
+        for (final double x : new double[]{block.minX(), block.maxX()}) {
+            for (final double y : new double[]{block.minY(), block.maxY()}) {
+                for (final double z : new double[]{block.minZ(), block.maxZ()}) {
+                    final double value = x * axis.x() + y * axis.y() + z * axis.z();
+                    min = Math.min(min, value);
+                    max = Math.max(max, value);
+                }
+            }
+        }
 
-    private static double blockMinU(final ProjectedBlock block, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM, FRONT, BACK -> block.minX();
-            case RIGHT, LEFT -> block.minZ();
-        };
-    }
-
-    private static double blockMaxU(final ProjectedBlock block, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM, FRONT, BACK -> block.maxX();
-            case RIGHT, LEFT -> block.maxZ();
-        };
-    }
-
-    private static double blockMinV(final ProjectedBlock block, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM -> block.minZ();
-            case FRONT, BACK, RIGHT, LEFT -> block.minY();
-        };
-    }
-
-    private static double blockMaxV(final ProjectedBlock block, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP, BOTTOM -> block.maxZ();
-            case FRONT, BACK, RIGHT, LEFT -> block.maxY();
-        };
-    }
-
-    private static double blockDepth(final ProjectedBlock block, final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP -> block.maxY();
-            case BOTTOM -> -block.minY();
-            case FRONT -> block.maxZ();
-            case BACK -> -block.minZ();
-            case RIGHT -> block.maxX();
-            case LEFT -> -block.minX();
-        };
+        return new AxisRange(min, max);
     }
 
     private static double brightness(final SableBlueprintPreview.View view) {
-        return switch (view) {
-            case TOP -> 1.0;
-            case BOTTOM -> 0.55;
-            case FRONT -> 0.9;
-            case BACK -> 0.72;
-            case RIGHT -> 0.82;
-            case LEFT -> 0.68;
-        };
+        double brightness = 0.86;
+        if (view.xSign() > 0) {
+            brightness += 0.08;
+        }
+        if (view.zSign() > 0) {
+            brightness += 0.06;
+        }
+        return brightness;
     }
 
     private static int shade(final int color, final double brightness) {
@@ -291,5 +265,14 @@ public final class SableBlueprintPreviewGenerator {
                                   double maxY,
                                   double maxZ,
                                   int color) {
+    }
+
+    private record ViewAxes(Vector3d right, Vector3d up, Vector3d forward) {
+    }
+
+    private record AxisRange(double min, double max) {
+        private double size() {
+            return this.max - this.min;
+        }
     }
 }
