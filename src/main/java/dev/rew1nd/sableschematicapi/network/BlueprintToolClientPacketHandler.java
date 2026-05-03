@@ -1,6 +1,6 @@
 package dev.rew1nd.sableschematicapi.network;
 
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolClientSession;
+import dev.rew1nd.sableschematicapi.tool.client.session.BlueprintToolClientSession;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 

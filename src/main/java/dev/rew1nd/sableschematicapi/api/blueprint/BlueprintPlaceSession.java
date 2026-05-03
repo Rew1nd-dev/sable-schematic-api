@@ -234,6 +234,28 @@ public class BlueprintPlaceSession {
     }
 
     /**
+     * Preloads a stable placement-local replacement UUID.
+     *
+     * <p>Incremental placers can use this when resuming a build whose manager-owned
+     * UUID mappings were already persisted.</p>
+     *
+     * @param sourceUuid source UUID stored in the blueprint
+     * @param placedUuid replacement UUID to use for this placement
+     */
+    public void mapAllocatedUuid(final UUID sourceUuid, final UUID placedUuid) {
+        this.allocatedUuidMap.put(sourceUuid, placedUuid);
+    }
+
+    /**
+     * Returns allocated source-to-placement UUID mappings.
+     *
+     * @return immutable copy of allocated source UUID to placement UUID mappings
+     */
+    public Map<UUID, UUID> allocatedUuidMap() {
+        return Map.copyOf(this.allocatedUuidMap);
+    }
+
+    /**
      * Schedules a task to run after all block entities have loaded.
      *
      * @param task task to run after block entity loading

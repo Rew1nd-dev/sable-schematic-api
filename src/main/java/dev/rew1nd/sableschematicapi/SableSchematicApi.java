@@ -6,6 +6,8 @@ import dev.rew1nd.sableschematicapi.compat.create.CreateBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.drivebywire.DriveByWireBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.simulated.SimulatedBlueprintCompat;
 import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
+import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlockEntities;
+import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlocks;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.RuntimeSubLevelStaticService;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiCreativeTabs;
@@ -25,6 +27,8 @@ public final class SableSchematicApi {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public SableSchematicApi(final IEventBus modEventBus) {
+        SableSchematicApiBlocks.register(modEventBus);
+        SableSchematicApiBlockEntities.register(modEventBus);
         SableSchematicApiItems.register(modEventBus);
         SableSchematicApiCreativeTabs.register(modEventBus);
         SableSchematicApiPackets.register(modEventBus);

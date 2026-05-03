@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PBP",
+    "SWS",
+    "SSS"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "B": {
+      "item": "minecraft:blue_dye"
+    },
+    "S": {
+      "item": "minecraft:smooth_stone"
+    },
+    "W": {
+      "item": "minecraft:crafting_table"
+    }
+  },
+  "result": {
+    "id": "sable_schematic_api:blueprint_table",
+    "count": 1
+  }
+}

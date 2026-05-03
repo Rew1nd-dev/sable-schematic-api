@@ -7,26 +7,30 @@ import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
 import com.lowdragmc.lowdraglib2.gui.ui.UI;
 import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import com.lowdragmc.lowdraglib2.gui.ui.data.Horizontal;
+import com.lowdragmc.lowdraglib2.gui.ui.data.ScrollDisplay;
+import com.lowdragmc.lowdraglib2.gui.ui.data.ScrollerMode;
 import com.lowdragmc.lowdraglib2.gui.ui.data.TextWrap;
 import com.lowdragmc.lowdraglib2.gui.ui.data.Vertical;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Selector;
+import com.lowdragmc.lowdraglib2.gui.ui.elements.TextArea;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
 import com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager;
 import com.lowdragmc.lowdraglib2.gui.ui.utils.UIElementProvider;
 import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolMode;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolClientSession;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolLocalPreviewCache;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolModes;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolLocalFiles;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSubLevelEntry;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSubLevelGroup;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSubLevelSortMode;
+import dev.rew1nd.sableschematicapi.tool.client.mode.BlueprintToolMode;
+import dev.rew1nd.sableschematicapi.tool.client.mode.BlueprintToolModes;
+import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolLocalPreviewCache;
+import dev.rew1nd.sableschematicapi.tool.client.session.BlueprintToolClientSession;
+import dev.rew1nd.sableschematicapi.tool.client.storage.BlueprintToolLocalFiles;
+import dev.rew1nd.sableschematicapi.tool.client.sublevel.BlueprintToolSubLevelEntry;
+import dev.rew1nd.sableschematicapi.tool.client.sublevel.BlueprintToolSubLevelGroup;
+import dev.rew1nd.sableschematicapi.tool.client.sublevel.BlueprintToolSubLevelSortMode;
+import dev.vfyjxf.taffy.style.AlignContent;
 import dev.vfyjxf.taffy.style.AlignItems;
 import dev.vfyjxf.taffy.style.FlexDirection;
 import dev.vfyjxf.taffy.style.TaffyPosition;
@@ -36,6 +40,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -58,6 +63,10 @@ public final class BlueprintToolUiRenderer {
     private static final float SCROLL_ROW_WIDTH = CONTENT_WIDTH - 12;
     private static final float GROUP_PADDING = 3;
     private static final float GROUP_INNER_WIDTH = SCROLL_ROW_WIDTH - GROUP_PADDING * 2;
+    private static final float PREVIEW_DIALOG_INNER_WIDTH = CONTENT_WIDTH - 16;
+    private static final float PREVIEW_DIALOG_SCROLL_HEIGHT = CONTENT_HEIGHT - 20 - 16 - ROW_HEIGHT - GAP;
+    private static final float PREVIEW_CANVAS_HEIGHT = 128;
+    private static final float DESCRIPTION_HEIGHT = 58;
 
     private BlueprintToolUiRenderer() {
     }
@@ -540,6 +549,28 @@ public final class BlueprintToolUiRenderer {
         return field;
     }
 
+    private static TextArea textArea(final String id, final float width, final float height) {
+        final TextArea area = new TextArea();
+        area.setId(id);
+        area.style(style -> style.backgroundTexture(fieldTexture()));
+        area.contentView.style(style -> style.backgroundTexture(SDFRectTexture.of(0xFFFFFFFF)));
+        area.textAreaStyle(style -> style
+                .textColor(0xFF1F2937)
+                .cursorColor(0xFF1F2937)
+                .textShadow(false)
+                .fontSize(8)
+                .verticalScrollDisplay(ScrollDisplay.AUTO)
+                .horizontalScrollDisplay(ScrollDisplay.NEVER)
+                .viewMode(ScrollerMode.VERTICAL)
+                .lineSpacing(1.0F));
+        area.layout(layout -> {
+            layout.width(width);
+            layout.height(height);
+            layout.paddingAll(2);
+        });
+        return area;
+    }
+
     private static Label bareLabel(final Horizontal align) {
         final Label label = new Label();
         label.setText(Component.empty());
@@ -679,8 +710,6 @@ public final class BlueprintToolUiRenderer {
     }
 
     private static final class BlueprintPreviewDialog extends UIElement {
-        private static final float CANVAS_HEIGHT = CONTENT_HEIGHT - 20 - 16 - ROW_HEIGHT * 2 - GAP * 2;
-
         private BlueprintToolLocalFiles.Entry renderedEntry;
         private SableBlueprintPreview.View renderedView;
         private int renderedRevision = Integer.MIN_VALUE;
@@ -734,30 +763,19 @@ public final class BlueprintToolUiRenderer {
         private void rebuild(final BlueprintToolLocalFiles.Entry entry, final SableBlueprintPreview.View view) {
             clearAllChildren();
 
-            final Label title = detailLabel(Component.literal(entry.name() + " / " + view.id().toUpperCase(Locale.ROOT)));
-            final BlueprintPreviewCanvas canvas = new BlueprintPreviewCanvas(entry, view);
-            canvas.layout(layout -> {
-                layout.width(CONTENT_WIDTH - 16);
-                layout.height(CANVAS_HEIGHT);
-                layout.paddingAll(4);
-            });
-            canvas.style(style -> style.backgroundTexture(displayTexture()));
+            addChildren(header(entry), metadataScroller(entry, view));
+        }
 
-            final Button previous = navButton(Component.literal("<"));
-            previous.setOnClick(event -> {
-                BlueprintToolClientSession.previousBlueprintPreviewView();
-                sync();
+        private UIElement header(final BlueprintToolLocalFiles.Entry entry) {
+            final Label title = detailLabel(Component.literal(entry.name()));
+            title.layout(layout -> {
+                layout.widthStretch();
+                layout.height(ROW_HEIGHT);
             });
 
-            final Button next = navButton(Component.literal(">"));
-            next.setOnClick(event -> {
-                BlueprintToolClientSession.nextBlueprintPreviewView();
-                sync();
-            });
-
-            final Button close = textButton(tr("ui.close"));
+            final Button close = textButton(Component.literal("X"));
             close.layout(layout -> {
-                layout.width(CONTENT_WIDTH - 16 - 44 * 2 - GAP * 2);
+                layout.width(20);
                 layout.height(ROW_HEIGHT);
             });
             close.setOnClick(event -> {
@@ -765,22 +783,235 @@ public final class BlueprintToolUiRenderer {
                 sync();
             });
 
-            final UIElement buttons = new UIElement()
+            return new UIElement()
                     .layout(layout -> {
-                        layout.width(CONTENT_WIDTH - 16);
+                        layout.width(PREVIEW_DIALOG_INNER_WIDTH);
                         layout.height(ROW_HEIGHT);
                         layout.flexDirection(FlexDirection.ROW);
+                        layout.alignItems(AlignItems.STRETCH);
                         layout.gapAll(GAP);
                     })
-                    .addChildren(previous, next, close);
+                    .addChildren(title, close);
+        }
 
-            addChildren(title, canvas, buttons);
+        private ScrollerView metadataScroller(final BlueprintToolLocalFiles.Entry entry,
+                                              final SableBlueprintPreview.View view) {
+            final ScrollerView scroller = new ScrollerView();
+            scroller.layout(layout -> {
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH);
+                layout.height(PREVIEW_DIALOG_SCROLL_HEIGHT);
+            });
+            scroller.style(style -> style.backgroundTexture(displayTexture()));
+            scroller.viewContainer(container -> container.layout(layout -> {
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH - 12);
+                layout.heightAuto();
+                layout.flexDirection(FlexDirection.COLUMN);
+                layout.gapAll(GAP);
+                layout.paddingAll(4);
+            }));
+
+            scroller.addScrollViewChild(previewColumn(entry, view));
+            scroller.addScrollViewChild(authorColumn());
+            return scroller;
+        }
+
+        private UIElement previewColumn(final BlueprintToolLocalFiles.Entry entry,
+                                        final SableBlueprintPreview.View view) {
+            final Label viewLabel = detailLabel(Component.literal(view.name()));
+            final BlueprintPreviewCanvas canvas = new BlueprintPreviewCanvas(entry, view);
+            canvas.layout(layout -> {
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
+                layout.height(PREVIEW_CANVAS_HEIGHT);
+                layout.paddingAll(4);
+            });
+            canvas.style(style -> style.backgroundTexture(fieldTexture()));
+
+            final Button previous = navButton(tr("ui.preview_previous"));
+            previous.setOnClick(event -> {
+                BlueprintToolClientSession.previousBlueprintPreviewView();
+                sync();
+            });
+
+            final Button next = navButton(tr("ui.preview_next"));
+            next.setOnClick(event -> {
+                BlueprintToolClientSession.nextBlueprintPreviewView();
+                sync();
+            });
+
+            final UIElement switchRow = new UIElement()
+                    .layout(layout -> {
+                        layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
+                        layout.height(ROW_HEIGHT);
+                        layout.flexDirection(FlexDirection.ROW);
+                        layout.alignItems(AlignItems.STRETCH);
+                        layout.justifyContent(AlignContent.SPACE_EVENLY);
+                    })
+                    .addChildren(previous, next);
+
+            return new UIElement()
+                    .layout(layout -> {
+                        layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
+                        layout.heightAuto();
+                        layout.flexDirection(FlexDirection.COLUMN);
+                        layout.gapAll(GAP);
+                    })
+                    .addChildren(viewLabel, canvas, switchRow);
+        }
+
+        private UIElement authorColumn() {
+            final boolean editing = BlueprintToolClientSession.blueprintMetadataEditing();
+            final String author = editing
+                    ? BlueprintToolClientSession.draftBlueprintAuthor()
+                    : BlueprintToolClientSession.openedBlueprintMetadata().author();
+            final String description = editing
+                    ? BlueprintToolClientSession.draftBlueprintDescription()
+                    : BlueprintToolClientSession.openedBlueprintMetadata().description();
+
+            final Label descriptionLabel = detailLabel(tr("ui.description"));
+            final UIElement descriptionField = editing
+                    ? editableDescription(description)
+                    : descriptionViewer(description);
+            final UIElement authorRow = editing
+                    ? editableAuthorRow(author)
+                    : authorRow(author);
+            final UIElement editRow = editConfigRow(editing);
+
+            return new UIElement()
+                    .layout(layout -> {
+                        layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
+                        layout.heightAuto();
+                        layout.flexDirection(FlexDirection.COLUMN);
+                        layout.gapAll(GAP);
+                    })
+                    .addChildren(descriptionLabel, descriptionField, authorRow, editRow);
+        }
+
+        private UIElement descriptionViewer(final String description) {
+            final ScrollerView scroller = new ScrollerView();
+            scroller.layout(layout -> {
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
+                layout.height(DESCRIPTION_HEIGHT);
+            });
+            scroller.style(style -> style.backgroundTexture(fieldTexture()));
+            scroller.viewContainer(container -> container.layout(layout -> {
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH - 32);
+                layout.heightAuto();
+                layout.paddingAll(3);
+            }));
+
+            final Label text = bareLabel(Horizontal.LEFT);
+            text.setText(description == null || description.isBlank()
+                    ? tr("ui.description_empty")
+                    : Component.literal(description));
+            text.textStyle(style -> style
+                    .adaptiveHeight(true)
+                    .textWrap(TextWrap.WRAP)
+                    .textAlignVertical(Vertical.TOP));
+            text.layout(layout -> {
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH - 36);
+                layout.heightAuto();
+            });
+            scroller.addScrollViewChild(text);
+            return scroller;
+        }
+
+        private TextArea editableDescription(final String description) {
+            final TextArea area = textArea(
+                    "sable_blueprint_description",
+                    PREVIEW_DIALOG_INNER_WIDTH - 20,
+                    DESCRIPTION_HEIGHT
+            );
+            area.setLines(lines(description));
+            area.setLinesResponder(lines -> BlueprintToolClientSession.setDraftBlueprintDescription(joinLines(lines)));
+            return area;
+        }
+
+        private UIElement authorRow(final String author) {
+            final Label label = detailLabel(tr("ui.author"));
+            label.layout(layout -> {
+                layout.width(64);
+                layout.height(ROW_HEIGHT);
+            });
+
+            final Label value = detailLabel(author == null || author.isBlank()
+                    ? tr("ui.author_empty")
+                    : Component.literal(author));
+            value.layout(layout -> {
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20 - 64 - GAP);
+                layout.height(ROW_HEIGHT);
+            });
+
+            return row(label, value);
+        }
+
+        private UIElement editableAuthorRow(final String author) {
+            final Label label = detailLabel(tr("ui.author"));
+            label.layout(layout -> {
+                layout.width(64);
+                layout.height(ROW_HEIGHT);
+            });
+
+            final TextField field = textField(
+                    "sable_blueprint_author",
+                    PREVIEW_DIALOG_INNER_WIDTH - 20 - 64 - GAP
+            );
+            field.setText(author == null ? "" : author);
+            field.setTextResponder(BlueprintToolClientSession::setDraftBlueprintAuthor);
+            return row(label, field);
+        }
+
+        private UIElement editConfigRow(final boolean editing) {
+            final Button edit = navButton(editing ? tr("ui.save_metadata") : tr("ui.edit_metadata"));
+            edit.setOnClick(event -> {
+                if (editing) {
+                    BlueprintToolClientSession.saveBlueprintMetadataEdit(
+                            BlueprintToolClientSession.draftBlueprintAuthor(),
+                            BlueprintToolClientSession.draftBlueprintDescription()
+                    );
+                } else {
+                    BlueprintToolClientSession.beginBlueprintMetadataEdit();
+                }
+                sync();
+            });
+
+            final UIElement row = new UIElement()
+                    .layout(layout -> {
+                        layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
+                        layout.height(ROW_HEIGHT);
+                        layout.flexDirection(FlexDirection.ROW);
+                        layout.alignItems(AlignItems.STRETCH);
+                        layout.justifyContent(AlignContent.SPACE_EVENLY);
+                    })
+                    .addChild(edit);
+
+            if (editing) {
+                final Button discard = navButton(tr("ui.discard_metadata"));
+                discard.setOnClick(event -> {
+                    BlueprintToolClientSession.discardBlueprintMetadataEdit();
+                    sync();
+                });
+                row.addChild(discard);
+            }
+
+            return row;
+        }
+
+        private UIElement row(final UIElement left, final UIElement right) {
+            return new UIElement()
+                    .layout(layout -> {
+                        layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
+                        layout.height(ROW_HEIGHT);
+                        layout.flexDirection(FlexDirection.ROW);
+                        layout.alignItems(AlignItems.STRETCH);
+                        layout.gapAll(GAP);
+                    })
+                    .addChildren(left, right);
         }
 
         private Button navButton(final Component text) {
             final Button button = textButton(text);
             button.layout(layout -> {
-                layout.width(44);
+                layout.width(76);
                 layout.height(ROW_HEIGHT);
             });
             return button;
@@ -790,10 +1021,21 @@ public final class BlueprintToolUiRenderer {
             final Label label = bareLabel(Horizontal.LEFT);
             label.setText(text);
             label.layout(layout -> {
-                layout.width(CONTENT_WIDTH - 16);
+                layout.width(PREVIEW_DIALOG_INNER_WIDTH - 20);
                 layout.height(ROW_HEIGHT);
             });
             return label;
+        }
+
+        private List<String> lines(final String text) {
+            if (text == null || text.isEmpty()) {
+                return List.of("");
+            }
+            return Arrays.asList(text.split("\\R", -1));
+        }
+
+        private String joinLines(final String[] lines) {
+            return lines == null ? "" : String.join("\n", lines);
         }
     }
 

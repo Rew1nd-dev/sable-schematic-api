@@ -1,8 +1,8 @@
 package dev.rew1nd.sableschematicapi.compat.create.client;
 
 import dev.rew1nd.sableschematicapi.SableSchematicApi;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSelectionPreview;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolSelectionPreviewRenderer;
+import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolSelectionPreview;
+import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolSelectionPreviewRenderer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3d;
 import dev.ryanhcode.sable.companion.math.BoundingBox3ic;

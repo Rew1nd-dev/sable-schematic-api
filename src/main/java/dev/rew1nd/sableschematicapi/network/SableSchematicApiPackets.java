@@ -1,7 +1,7 @@
 package dev.rew1nd.sableschematicapi.network;
 
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
-import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolServerSubLevelAction;
+import dev.rew1nd.sableschematicapi.tool.client.sublevel.BlueprintToolServerSubLevelAction;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;

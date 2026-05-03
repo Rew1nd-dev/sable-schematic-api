@@ -10,7 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class SableBlueprintPreview {
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
     public static final int DEFAULT_RESOLUTION = 512;
 
     private final int resolution;
@@ -132,12 +132,26 @@ public final class SableBlueprintPreview {
     }
 
     public enum View {
-        TOP,
-        BOTTOM,
-        FRONT,
-        BACK,
-        RIGHT,
-        LEFT;
+        ISO_XP_ZP(1, 1),
+        ISO_XP_ZN(1, -1),
+        ISO_XN_ZP(-1, 1),
+        ISO_XN_ZN(-1, -1);
+
+        private final int xSign;
+        private final int zSign;
+
+        View(final int xSign, final int zSign) {
+            this.xSign = xSign;
+            this.zSign = zSign;
+        }
+
+        public int xSign() {
+            return this.xSign;
+        }
+
+        public int zSign() {
+            return this.zSign;
+        }
 
         public String id() {
             return this.name().toLowerCase(Locale.ROOT);

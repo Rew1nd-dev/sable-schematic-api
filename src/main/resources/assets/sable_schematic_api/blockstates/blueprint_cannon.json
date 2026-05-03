@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "sable_schematic_api:block/blueprint_cannon"
+    },
+    "facing=east": {
+      "model": "sable_schematic_api:block/blueprint_cannon",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "sable_schematic_api:block/blueprint_cannon",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "sable_schematic_api:block/blueprint_cannon",
+      "y": 270
+    }
+  }
+}
