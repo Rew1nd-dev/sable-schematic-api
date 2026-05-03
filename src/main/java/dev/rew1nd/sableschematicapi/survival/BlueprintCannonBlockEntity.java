@@ -277,9 +277,9 @@ public class BlueprintCannonBlockEntity extends BlockEntity {
         final List<BudgetLine> lines = new java.util.ArrayList<>();
         for (final CostLine costLine : quote.lines()) {
             final ItemStack stack = costLine.stack();
-            final int available = BlueprintCannonMaterialBudget.countAvailable(
+            final BlueprintCannonMaterialBudget.Availability availability = BlueprintCannonMaterialBudget.availability(
                     (ServerLevel) this.level, this.worldPosition, stack.copyWithCount(1));
-            lines.add(new BudgetLine(stack.copyWithCount(1), stack.getCount(), available));
+            lines.add(new BudgetLine(stack.copyWithCount(1), stack.getCount(), availability.available(), availability.unlimited()));
         }
         this.estimatedBudget = List.copyOf(lines);
         this.markDirtyAndSync();
@@ -477,6 +477,7 @@ public class BlueprintCannonBlockEntity extends BlockEntity {
             entry.put("item", line.item().saveOptional(registries));
             entry.putInt("required", line.required());
             entry.putInt("available", line.available());
+            entry.putBoolean("unlimited", line.unlimited());
             budgetList.add(entry);
         }
         tag.put(KEY_ESTIMATED_BUDGET, budgetList);
@@ -507,7 +508,7 @@ public class BlueprintCannonBlockEntity extends BlockEntity {
                 if (item.isEmpty()) {
                     continue;
                 }
-                lines.add(new BudgetLine(item, entry.getInt("required"), entry.getInt("available")));
+                lines.add(new BudgetLine(item, entry.getInt("required"), entry.getInt("available"), entry.getBoolean("unlimited")));
             }
             this.estimatedBudget = List.copyOf(lines);
         }

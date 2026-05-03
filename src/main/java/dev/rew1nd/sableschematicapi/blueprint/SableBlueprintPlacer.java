@@ -9,6 +9,7 @@ import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlacedBlock;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintEventRegistry;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintMapperRegistry;
+import dev.rew1nd.sableschematicapi.survival.BlueprintPlacementPlan;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
@@ -45,18 +46,22 @@ public final class SableBlueprintPlacer {
     }
 
     public static Result place(final ServerLevel level, final SableBlueprint blueprint, final Vec3 origin) {
+        return place(level, blueprint, BlueprintPlacementPlan.legacy(blueprint, origin));
+    }
+
+    public static Result place(final ServerLevel level, final SableBlueprint blueprint, final BlueprintPlacementPlan placementPlan) {
         final ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             throw new IllegalStateException("No Sable sub-level container is available for this level");
         }
 
-        final BlueprintPlaceSession session = new BlueprintPlaceSession(level, new Vector3d(origin.x, origin.y, origin.z), blueprint.globalExtraData());
+        final BlueprintPlaceSession session = new BlueprintPlaceSession(level, placementPlan.origin(), blueprint.globalExtraData());
         final SubLevelPhysicsSystem physicsSystem = container.physicsSystem();
         final List<PlacedBlock> placedBlocks = new ObjectArrayList<>();
 
         session.setPhase(BlueprintPlacePhase.ALLOCATE_SUBLEVELS);
         for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
-            final Pose3d pose = placedPose(entry, origin);
+            final Pose3d pose = placementPlan.pose(entry);
             final ServerSubLevel subLevel = (ServerSubLevel) container.allocateNewSubLevel(pose);
             final BlockPos placedBlocksOrigin = placedBlocksOrigin(subLevel, entry.localBounds());
 
@@ -137,20 +142,13 @@ public final class SableBlueprintPlacer {
             subLevel.updateMergedMassData(1.0f);
             physicsSystem.getPipeline().onStatsChanged(subLevel);
 
-            final Pose3d pose = placedPose(entry, origin);
+            final Pose3d pose = placementPlan.pose(entry);
             physicsSystem.getPipeline().teleport(subLevel, pose.position(), pose.orientation());
             subLevel.updateLastPose();
             placed++;
         }
 
         return new Result(placed, session.subLevelUuidMap());
-    }
-
-    private static Pose3d placedPose(final SableBlueprint.SubLevelData entry, final Vec3 origin) {
-        final Pose3d pose = new Pose3d(entry.relativePose());
-        pose.position().add(origin.x, origin.y, origin.z);
-        pose.rotationPoint().set(0.0, 0.0, 0.0);
-        return pose;
     }
 
     private static BlockPos placedBlocksOrigin(final ServerSubLevel subLevel, final BoundingBox3i localBounds) {

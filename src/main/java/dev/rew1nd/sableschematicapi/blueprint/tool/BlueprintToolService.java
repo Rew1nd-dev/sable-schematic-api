@@ -4,6 +4,7 @@ import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintFiles;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintPlacer;
+import dev.rew1nd.sableschematicapi.survival.BlueprintPlacementPlan;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
@@ -18,6 +19,8 @@ import java.nio.file.Path;
 import java.util.List;
 
 public final class BlueprintToolService {
+    private static final double TOOL_LOAD_SPACING = 5.0D;
+
     private BlueprintToolService() {
     }
 
@@ -114,7 +117,8 @@ public final class BlueprintToolService {
                                                 final String name) {
         try {
             final SableBlueprint blueprint = readFromBytes(data);
-            final SableBlueprintPlacer.Result result = SableBlueprintPlacer.place(level, blueprint, origin);
+            final BlueprintPlacementPlan placementPlan = BlueprintPlacementPlan.forLookTarget(blueprint, origin, TOOL_LOAD_SPACING);
+            final SableBlueprintPlacer.Result result = SableBlueprintPlacer.place(level, blueprint, placementPlan);
             final BlueprintToolSummary summary = BlueprintToolSummary.of(blueprint);
             return BlueprintToolResult.success(
                     "Loaded Sable blueprint '%s' with %s.".formatted(name, summary.describe()),

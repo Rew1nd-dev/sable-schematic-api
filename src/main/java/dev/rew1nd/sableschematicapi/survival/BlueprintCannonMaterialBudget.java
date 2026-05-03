@@ -5,15 +5,9 @@ import dev.rew1nd.sableschematicapi.api.blueprint.survival.ConsumeResult;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.CostLine;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.CostQuote;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.items.IItemHandler;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,14 +16,6 @@ import java.util.List;
  * Material budget backed by item-handler capabilities around and below the cannon.
  */
 public final class BlueprintCannonMaterialBudget implements BlueprintBuildMaterialBudget {
-    private static final Direction[] SOURCE_DIRECTIONS = {
-            Direction.NORTH,
-            Direction.SOUTH,
-            Direction.WEST,
-            Direction.EAST,
-            Direction.DOWN
-    };
-
     private final ServerLevel level;
     private final BlockPos cannonPos;
 
@@ -39,13 +25,7 @@ public final class BlueprintCannonMaterialBudget implements BlueprintBuildMateri
     }
 
     public static int countMaterialSources(final ServerLevel level, final BlockPos cannonPos) {
-        int count = 0;
-        for (final Source source : sources(level, cannonPos)) {
-            if (source.handler() != null) {
-                count++;
-            }
-        }
-        return count;
+        return BlueprintCannonMaterialSources.sources(level, cannonPos).size();
     }
 
     @Override
@@ -79,43 +59,30 @@ public final class BlueprintCannonMaterialBudget implements BlueprintBuildMateri
         }
 
         int available = 0;
-        for (final Source source : sources(this.level, this.cannonPos)) {
-            final IItemHandler handler = source.handler();
-            if (handler == null) {
-                continue;
+        for (final BlueprintCannonMaterialSource source : BlueprintCannonMaterialSources.sources(this.level, this.cannonPos)) {
+            if (source.unlimited()) {
+                return true;
             }
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                final ItemStack stack = handler.getStackInSlot(slot);
-                if (ItemStack.isSameItemSameComponents(required, stack)) {
-                    available += stack.getCount();
-                    if (available >= required.getCount()) {
-                        return true;
-                    }
-                }
+            available = saturatedAdd(available, source.available(required));
+            if (available >= required.getCount()) {
+                return true;
             }
         }
         return false;
     }
 
     private void consume(final ItemStack required) {
-        int remaining = required.getCount();
-        for (final Source source : sources(this.level, this.cannonPos)) {
-            final IItemHandler handler = source.handler();
-            if (handler == null) {
-                continue;
+        final List<BlueprintCannonMaterialSource> sources = BlueprintCannonMaterialSources.sources(this.level, this.cannonPos);
+        for (final BlueprintCannonMaterialSource source : sources) {
+            if (source.unlimited()) {
+                source.consume(required, required.getCount());
+                return;
             }
-            for (int slot = 0; slot < handler.getSlots() && remaining > 0; slot++) {
-                final ItemStack stack = handler.getStackInSlot(slot);
-                if (!ItemStack.isSameItemSameComponents(required, stack)) {
-                    continue;
-                }
+        }
 
-                final int requested = Math.min(remaining, stack.getCount());
-                final ItemStack extracted = handler.extractItem(slot, requested, false);
-                if (ItemStack.isSameItemSameComponents(required, extracted)) {
-                    remaining -= extracted.getCount();
-                }
-            }
+        int remaining = required.getCount();
+        for (final BlueprintCannonMaterialSource source : sources) {
+            remaining -= source.consume(required, remaining);
             if (remaining <= 0) {
                 return;
             }
@@ -146,48 +113,34 @@ public final class BlueprintCannonMaterialBudget implements BlueprintBuildMateri
         return stacks;
     }
 
-    private static List<Source> sources(final ServerLevel level, final BlockPos cannonPos) {
-        final List<Source> sources = new ArrayList<>(SOURCE_DIRECTIONS.length);
-        for (final Direction direction : SOURCE_DIRECTIONS) {
-            final BlockPos sourcePos = cannonPos.relative(direction);
-            final Direction side = sideFor(direction);
-            sources.add(new Source(sourcePos, capability(level, sourcePos, side)));
-        }
-        return sources;
-    }
-
-    private static Direction sideFor(final Direction sourceDirection) {
-        return sourceDirection == Direction.DOWN ? Direction.UP : sourceDirection.getOpposite();
-    }
-
     /**
      * Counts how many of the given item are available in inventories around the cannon.
      */
     public static int countAvailable(final ServerLevel level,
                                       final BlockPos cannonPos,
                                       final ItemStack required) {
+        final Availability availability = availability(level, cannonPos, required);
+        return availability.unlimited() ? Integer.MAX_VALUE : availability.available();
+    }
+
+    public static Availability availability(final ServerLevel level,
+                                            final BlockPos cannonPos,
+                                            final ItemStack required) {
         int total = 0;
-        for (final Source source : sources(level, cannonPos)) {
-            final IItemHandler handler = source.handler();
-            if (handler == null) {
-                continue;
+        for (final BlueprintCannonMaterialSource source : BlueprintCannonMaterialSources.sources(level, cannonPos)) {
+            if (source.unlimited()) {
+                return new Availability(total, true);
             }
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                final ItemStack stack = handler.getStackInSlot(slot);
-                if (ItemStack.isSameItemSameComponents(required, stack)) {
-                    total += stack.getCount();
-                }
-            }
+            total = saturatedAdd(total, source.available(required));
         }
-        return total;
+        return new Availability(total, false);
     }
 
-    private static @Nullable IItemHandler capability(final ServerLevel level, final BlockPos pos, final Direction side) {
-        final BlockState state = level.getBlockState(pos);
-        final BlockEntity blockEntity = level.getBlockEntity(pos);
-        return Capabilities.ItemHandler.BLOCK.getCapability(level, pos, state, blockEntity, side);
+    private static int saturatedAdd(final int left, final int right) {
+        final long sum = (long) left + right;
+        return sum >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) sum;
     }
 
-    private record Source(BlockPos pos, @Nullable IItemHandler handler) {
+    public record Availability(int available, boolean unlimited) {
     }
 }

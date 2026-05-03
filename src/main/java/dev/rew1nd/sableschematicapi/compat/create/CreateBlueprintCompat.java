@@ -5,6 +5,7 @@ import dev.rew1nd.sableschematicapi.SableSchematicApi;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintEventRegistry;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintMapperRegistry;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessRegistry;
+import dev.rew1nd.sableschematicapi.survival.BlueprintCannonMaterialSources;
 
 public final class CreateBlueprintCompat {
     private static boolean registered;
@@ -32,6 +33,7 @@ public final class CreateBlueprintCompat {
                 ContraptionPlaceOperation.TYPE, new ContraptionPlaceMapper());
         BlueprintPostProcessRegistry.registerCost(
                 ContraptionPlaceOperation.TYPE, new ContraptionPlaceCost());
+        BlueprintCannonMaterialSources.registerProvider(new CreateCreativeCrateMaterialSourceProvider());
 
         registered = true;
 
