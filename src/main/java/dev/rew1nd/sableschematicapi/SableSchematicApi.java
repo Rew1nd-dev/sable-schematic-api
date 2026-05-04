@@ -2,6 +2,7 @@ package dev.rew1nd.sableschematicapi;
 
 import com.mojang.logging.LogUtils;
 import dev.rew1nd.sableschematicapi.command.SableBlueprintCommands;
+import dev.rew1nd.sableschematicapi.compat.copycats.CopycatsBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.create.CreateBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.drivebywire.DriveByWireBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.simulated.SimulatedBlueprintCompat;
@@ -48,6 +49,10 @@ public final class SableSchematicApi {
 
             if (ModList.get().isLoaded("simulated")) {
                 SimulatedBlueprintCompat.register();
+            }
+
+            if (ModList.get().isLoaded("copycats")) {
+                CopycatsBlueprintCompat.register();
             }
 
             if (ModList.get().isLoaded("drivebywire")) {

@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " B ",
+    " W ",
+    "SSS"
+  ],
+  "key": {
+    "B": {
+      "item": "minecraft:dispenser"
+    },
+    "S": {
+      "item": "minecraft:smooth_stone"
+    },
+    "W": {
+      "item": "minecraft:iron_block"
+    }
+  },
+  "result": {
+    "id": "sable_schematic_api:blueprint_cannon",
+    "count": 1
+  }
+}

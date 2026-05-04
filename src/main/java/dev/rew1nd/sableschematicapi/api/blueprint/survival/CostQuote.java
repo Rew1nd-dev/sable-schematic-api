@@ -28,6 +28,13 @@ public record CostQuote(List<CostLine> lines, CostTiming timing, CostSeverity se
         return this.lines.isEmpty();
     }
 
+    public CostQuote withTiming(final CostTiming timing) {
+        if (this.timing == timing) {
+            return this;
+        }
+        return new CostQuote(this.lines, timing, this.severity);
+    }
+
     public CostQuote merge(final CostQuote other) {
         if (other.isEmpty()) {
             return this;

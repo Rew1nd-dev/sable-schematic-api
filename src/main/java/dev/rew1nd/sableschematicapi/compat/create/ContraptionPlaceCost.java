@@ -59,7 +59,8 @@ public final class ContraptionPlaceCost implements BlueprintPostProcessCostStrat
             final int stateId = entry.getInt("State");
             if (stateId >= 0 && stateId < palette.length) {
                 total = total.merge(
-                        BlueprintBlockCostRules.quoteForState(palette[stateId], blockCtx));
+                        BlueprintBlockCostRules.quotePlacementForState(palette[stateId], blockCtx)
+                                .withTiming(CostTiming.COMMIT));
             }
         }
 
