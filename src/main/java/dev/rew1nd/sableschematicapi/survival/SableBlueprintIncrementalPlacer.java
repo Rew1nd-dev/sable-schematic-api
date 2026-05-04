@@ -82,14 +82,14 @@ public final class SableBlueprintIncrementalPlacer {
     private SableBlueprintIncrementalPlacer() {
     }
 
-    public static BlueprintBuildStepResult step(final ServerLevel level,
-                                                final SableBlueprint blueprint,
-                                                final Vec3 origin,
-                                                final BlueprintBuildProgress progress,
-                                                final BlueprintBuildTickBudget tickBudget,
-                                                final BlueprintBuildMaterialBudget materialBudget) {
-        return step(level, blueprint, BlueprintPlacementPlan.legacy(blueprint, origin), progress, tickBudget, materialBudget);
-    }
+//    public static BlueprintBuildStepResult step(final ServerLevel level,
+//                                                final SableBlueprint blueprint,
+//                                                final Vec3 origin,
+//                                                final BlueprintBuildProgress progress,
+//                                                final BlueprintBuildTickBudget tickBudget,
+//                                                final BlueprintBuildMaterialBudget materialBudget) {
+//        return step(level, blueprint, BlueprintPlacementPlan.legacy(blueprint, origin), progress, tickBudget, materialBudget);
+//    }
 
     public static BlueprintBuildStepResult step(final ServerLevel level,
                                                 final SableBlueprint blueprint,
@@ -125,7 +125,7 @@ public final class SableBlueprintIncrementalPlacer {
 
             if (progress.phase() == BlueprintBuildPhase.PRE_COMMIT_VALIDATE) {
                 // Parse, admit, and quote all registered post-process operations
-                CostQuote commitQuote = CostQuote.empty(CostTiming.COMMIT);
+                CostQuote commitQuote = quoteNbtLoadCost(level, blueprint, placementPlan.originVec3());
                 final List<BlueprintPostProcessOperation> admittedOps = new ArrayList<>();
                 final List<Component> warnings = new ArrayList<>();
 
@@ -178,15 +178,17 @@ public final class SableBlueprintIncrementalPlacer {
                     }
                 }
 
-                if (!materialBudget.canAfford(commitQuote)) {
-                    return BlueprintBuildStepResult.waitingForMaterials(commitQuote);
-                }
-                if (!commitQuote.isEmpty() && !progress.commitCostConsumed()) {
-                    final ConsumeResult consumed = materialBudget.consume(commitQuote);
-                    if (!consumed.successful()) {
+                if (!progress.commitCostConsumed()) {
+                    if (!materialBudget.canAfford(commitQuote)) {
                         return BlueprintBuildStepResult.waitingForMaterials(commitQuote);
                     }
-                    progress.setCommitCostConsumed(true);
+                    if (!commitQuote.isEmpty()) {
+                        final ConsumeResult consumed = materialBudget.consume(commitQuote);
+                        if (!consumed.successful()) {
+                            return BlueprintBuildStepResult.waitingForMaterials(commitQuote);
+                        }
+                        progress.setCommitCostConsumed(true);
+                    }
                 }
 
                 // Store admitted operations so commit() can apply them
@@ -214,6 +216,25 @@ public final class SableBlueprintIncrementalPlacer {
         }
     }
 
+    private static CostQuote quoteNbtLoadCost(final ServerLevel level,
+                                              final SableBlueprint blueprint,
+                                              final Vec3 origin) {
+        CostQuote total = CostQuote.empty(CostTiming.COMMIT);
+        final BlueprintBlockCostContext context = new BlueprintBlockCostContext(level, origin);
+
+        for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
+            for (final SableBlueprint.BlockData block : entry.blocks()) {
+                final BlueprintBuildBlockPayload payload = payload(blueprint, entry, block);
+                if (!payload.nbtDecision().loadsNbt()) {
+                    continue;
+                }
+                total = total.merge(BlueprintBlockCostRules.quoteNbtLoad(payload, context));
+            }
+        }
+
+        return total.compact();
+    }
+
     /**
      * Estimates the material cost for blocks and post-process operations that have not
      * yet been completed. Uses the current {@link BlueprintBuildProgress} cursor to
@@ -228,7 +249,7 @@ public final class SableBlueprintIncrementalPlacer {
             return CostQuote.empty(CostTiming.INFORMATIONAL);
         }
 
-        CostQuote total = CostQuote.empty(CostTiming.COMMIT);
+        CostQuote total = CostQuote.empty(CostTiming.INFORMATIONAL);
         final BlueprintBlockCostContext blockCtx = new BlueprintBlockCostContext(level, Vec3.ZERO);
 
         // Block costs from the current cursor onward
@@ -243,11 +264,17 @@ public final class SableBlueprintIncrementalPlacer {
 
                 for (int bi = startBlock; bi < entry.blocks().size(); bi++) {
                     final var block = entry.blocks().get(bi);
-                    final var state = entry.blockPalette().get(block.paletteId());
-                    total = total.merge(BlueprintBlockCostRules.quoteForState(state, blockCtx));
+                    total = total.merge(BlueprintBlockCostRules.quotePlacement(
+                            payload(blueprint, entry, block), blockCtx));
                 }
             }
         }
+
+        if (progress.commitCostConsumed()) {
+            return total.compact();
+        }
+
+        total = total.merge(quoteNbtLoadCost(level, blueprint, Vec3.ZERO));
 
         // Post-process operation costs (skip already-applied operations)
         final BlueprintPlaceSession session = new BlueprintPlaceSession(
@@ -261,7 +288,7 @@ public final class SableBlueprintIncrementalPlacer {
                 continue;
             }
 
-            final net.minecraft.nbt.CompoundTag sidecarData =
+            final CompoundTag sidecarData =
                     blueprint.globalExtraData().getCompound(sidecarId.toString());
             final var parsed = parser.parse(session, sidecarData, blueprint);
 
@@ -326,7 +353,7 @@ public final class SableBlueprintIncrementalPlacer {
                     return new BlockPhaseOutcome(BlueprintBuildStepResult.failed("A blueprint block is denied by survival NBT policy."), affected);
                 }
 
-                final CostQuote quote = BlueprintBlockCostRules.quote(payload, new BlueprintBlockCostContext(level, placementPlan.originVec3()));
+                final CostQuote quote = BlueprintBlockCostRules.quotePlacement(payload, new BlueprintBlockCostContext(level, placementPlan.originVec3()));
                 if (!materialBudget.canAfford(quote)) {
                     return new BlockPhaseOutcome(BlueprintBuildStepResult.waitingForMaterials(quote), affected);
                 }
