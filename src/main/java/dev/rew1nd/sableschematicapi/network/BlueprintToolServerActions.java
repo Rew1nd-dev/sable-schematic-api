@@ -52,15 +52,17 @@ public final class BlueprintToolServerActions {
     private static final int MAX_NAME_LENGTH = 128;
     private static final double MAX_DELETE_DISTANCE = 96.0;
     private static final Map<ResourceLocation, BlueprintToolServerAction> ACTIONS = new LinkedHashMap<>();
+    private static boolean defaultsRegistered;
 
     private BlueprintToolServerActions() {
     }
 
     public static void registerDefaults() {
-        if (!ACTIONS.isEmpty()) {
+        if (defaultsRegistered) {
             return;
         }
 
+        defaultsRegistered = true;
         register(SAVE_SELECTION, BlueprintToolServerActions::handleSaveSelection);
         register(LOAD_BLUEPRINT, BlueprintToolServerActions::handleLoadBlueprint);
         register(DELETE_LOOKED_SUBLEVEL, BlueprintToolServerActions::handleDeleteLookedSubLevel);
@@ -348,7 +350,7 @@ public final class BlueprintToolServerActions {
         final byte[] compressedData = data.getByteArray("data");
         final byte[] hash = data.getByteArray("hash");
 
-        if (compressedData.length == 0 || compressedData.length > SableSchematicApiPackets.MAX_BLUEPRINT_BYTES) {
+        if (compressedData.length == 0) {
             SableSchematicApiPackets.notify(player, SableSchematicApiPackets.tr("status.invalid_upload"), ChatFormatting.RED);
             return;
         }

@@ -82,15 +82,6 @@ public final class SableBlueprintIncrementalPlacer {
     private SableBlueprintIncrementalPlacer() {
     }
 
-//    public static BlueprintBuildStepResult step(final ServerLevel level,
-//                                                final SableBlueprint blueprint,
-//                                                final Vec3 origin,
-//                                                final BlueprintBuildProgress progress,
-//                                                final BlueprintBuildTickBudget tickBudget,
-//                                                final BlueprintBuildMaterialBudget materialBudget) {
-//        return step(level, blueprint, BlueprintPlacementPlan.legacy(blueprint, origin), progress, tickBudget, materialBudget);
-//    }
-
     public static BlueprintBuildStepResult step(final ServerLevel level,
                                                 final SableBlueprint blueprint,
                                                 final BlueprintPlacementPlan placementPlan,
@@ -125,7 +116,7 @@ public final class SableBlueprintIncrementalPlacer {
 
             if (progress.phase() == BlueprintBuildPhase.PRE_COMMIT_VALIDATE) {
                 // Parse, admit, and quote all registered post-process operations
-                CostQuote commitQuote = quoteNbtLoadCost(level, blueprint, placementPlan.originVec3());
+                CostQuote commitQuote = quoteNbtLoadCost(level, blueprint, progress, placementPlan.originVec3());
                 final List<BlueprintPostProcessOperation> admittedOps = new ArrayList<>();
                 final List<Component> warnings = new ArrayList<>();
 
@@ -216,14 +207,85 @@ public final class SableBlueprintIncrementalPlacer {
         }
     }
 
+    public static BlueprintBuildStepResult skipCurrentBlock(final ServerLevel level,
+                                                            final SableBlueprint blueprint,
+                                                            final BlueprintPlacementPlan placementPlan,
+                                                            final BlueprintBuildProgress progress) {
+        try {
+            if (progress.phase() == BlueprintBuildPhase.DONE) {
+                unlockPlacedSubLevelLocksQuietly(level, progress);
+                return BlueprintBuildStepResult.status(BlueprintBuildStatus.DONE, Component.literal("Blueprint build is already complete."));
+            }
+            if (progress.phase() == BlueprintBuildPhase.FAILED) {
+                unlockPlacedSubLevelLocksQuietly(level, progress);
+                return BlueprintBuildStepResult.failed("Blueprint build is already failed.");
+            }
+
+            ensurePlacedSubLevelLocks(level, progress);
+            if (progress.phase() == BlueprintBuildPhase.DECODE || progress.phase() == BlueprintBuildPhase.PLAN) {
+                progress.setPhase(BlueprintBuildPhase.ALLOCATE_AND_PLACE_BLOCKS);
+            }
+            if (progress.phase() != BlueprintBuildPhase.ALLOCATE_AND_PLACE_BLOCKS) {
+                return BlueprintBuildStepResult.status(
+                        BlueprintBuildStatus.CONTINUE,
+                        Component.literal("Only the block placement phase can skip blueprint blocks.")
+                );
+            }
+
+            final ServerSubLevelContainer container = requireContainer(level);
+            final List<SableBlueprint.SubLevelData> subLevels = blueprint.subLevels();
+            while (progress.currentSubLevelIndex() < subLevels.size()) {
+                final SableBlueprint.SubLevelData entry = subLevels.get(progress.currentSubLevelIndex());
+                if (entry.blocks().isEmpty()) {
+                    ensureAllocated(container, entry, placementPlan, progress);
+                    progress.setCurrentSubLevelIndex(progress.currentSubLevelIndex() + 1);
+                    progress.setCurrentBlockIndex(0);
+                    continue;
+                }
+                if (progress.currentBlockIndex() >= entry.blocks().size()) {
+                    progress.setCurrentSubLevelIndex(progress.currentSubLevelIndex() + 1);
+                    progress.setCurrentBlockIndex(0);
+                    continue;
+                }
+
+                final SableBlueprint.BlockData block = entry.blocks().get(progress.currentBlockIndex());
+                ensureAllocated(container, entry, placementPlan, progress);
+                if (!progress.isBlockSkipped(entry.id(), block.localPos())) {
+                    progress.markBlockSkipped(entry.id(), block.localPos());
+                    progress.setCurrentBlockIndex(progress.currentBlockIndex() + 1);
+                    return BlueprintBuildStepResult.status(
+                            BlueprintBuildStatus.CONTINUE,
+                            Component.literal("Skipped current blueprint block.")
+                    );
+                }
+
+                progress.setCurrentBlockIndex(progress.currentBlockIndex() + 1);
+            }
+
+            progress.setPhase(BlueprintBuildPhase.PRE_COMMIT_VALIDATE);
+            return BlueprintBuildStepResult.status(
+                    BlueprintBuildStatus.CONTINUE,
+                    Component.literal("No remaining blueprint block to skip.")
+            );
+        } catch (final RuntimeException e) {
+            progress.setPhase(BlueprintBuildPhase.FAILED);
+            unlockPlacedSubLevelLocksQuietly(level, progress);
+            return BlueprintBuildStepResult.failed(e.getMessage());
+        }
+    }
+
     private static CostQuote quoteNbtLoadCost(final ServerLevel level,
                                               final SableBlueprint blueprint,
+                                              final BlueprintBuildProgress progress,
                                               final Vec3 origin) {
         CostQuote total = CostQuote.empty(CostTiming.COMMIT);
         final BlueprintBlockCostContext context = new BlueprintBlockCostContext(level, origin);
 
         for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
             for (final SableBlueprint.BlockData block : entry.blocks()) {
+                if (progress.isBlockSkipped(entry.id(), block.localPos())) {
+                    continue;
+                }
                 final BlueprintBuildBlockPayload payload = payload(blueprint, entry, block);
                 if (!payload.nbtDecision().loadsNbt()) {
                     continue;
@@ -264,6 +326,9 @@ public final class SableBlueprintIncrementalPlacer {
 
                 for (int bi = startBlock; bi < entry.blocks().size(); bi++) {
                     final var block = entry.blocks().get(bi);
+                    if (progress.isBlockSkipped(entry.id(), block.localPos())) {
+                        continue;
+                    }
                     total = total.merge(BlueprintBlockCostRules.quotePlacement(
                             payload(blueprint, entry, block), blockCtx));
                 }
@@ -274,7 +339,7 @@ public final class SableBlueprintIncrementalPlacer {
             return total.compact();
         }
 
-        total = total.merge(quoteNbtLoadCost(level, blueprint, Vec3.ZERO));
+        total = total.merge(quoteNbtLoadCost(level, blueprint, progress, Vec3.ZERO));
 
         // Post-process operation costs (skip already-applied operations)
         final BlueprintPlaceSession session = new BlueprintPlaceSession(
@@ -348,6 +413,12 @@ public final class SableBlueprintIncrementalPlacer {
                 }
 
                 final SableBlueprint.BlockData block = entry.blocks().get(progress.currentBlockIndex());
+                if (progress.isBlockSkipped(entry.id(), block.localPos())) {
+                    ensureAllocated(container, entry, placementPlan, progress);
+                    progress.setCurrentBlockIndex(progress.currentBlockIndex() + 1);
+                    continue;
+                }
+
                 final BlueprintBuildBlockPayload payload = payload(blueprint, entry, block);
                 if (payload.nbtDecision().mode() == BlueprintNbtLoadMode.DENY) {
                     return new BlockPhaseOutcome(BlueprintBuildStepResult.failed("A blueprint block is denied by survival NBT policy."), affected);
@@ -421,6 +492,10 @@ public final class SableBlueprintIncrementalPlacer {
             for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
                 final ServerSubLevel subLevel = requirePlacedSubLevel(container, progress, entry);
                 for (final SableBlueprint.BlockData block : entry.blocks()) {
+                    if (progress.isBlockSkipped(entry.id(), block.localPos())) {
+                        continue;
+                    }
+
                     final BlueprintBuildBlockPayload payload = payload(blueprint, entry, block);
                     if (payload.nbtDecision().mode() == BlueprintNbtLoadMode.DENY) {
                         throw new IllegalStateException("A blueprint block is denied by survival NBT policy.");
@@ -492,6 +567,9 @@ public final class SableBlueprintIncrementalPlacer {
         for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
             final ServerSubLevel subLevel = requirePlacedSubLevel(container, progress, entry);
             if (subLevel.getPlot().getBoundingBox() == BoundingBox3i.EMPTY || subLevel.getPlot().getBoundingBox().volume() <= 0) {
+                if (!hasUnskippedBlocks(entry, progress)) {
+                    continue;
+                }
                 container.removeSubLevel(subLevel, SubLevelRemovalReason.REMOVED);
                 throw new IllegalStateException("Loaded blueprint sub-level " + entry.id() + " has empty plot bounds");
             }
@@ -507,6 +585,16 @@ public final class SableBlueprintIncrementalPlacer {
         for (final Map.Entry<java.util.UUID, java.util.UUID> entry : session.allocatedUuidMap().entrySet()) {
             progress.recordAllocatedUuid(entry.getKey(), entry.getValue());
         }
+    }
+
+    private static boolean hasUnskippedBlocks(final SableBlueprint.SubLevelData entry,
+                                              final BlueprintBuildProgress progress) {
+        for (final SableBlueprint.BlockData block : entry.blocks()) {
+            if (!progress.isBlockSkipped(entry.id(), block.localPos())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static BlueprintBuildBlockPayload payload(final SableBlueprint blueprint,

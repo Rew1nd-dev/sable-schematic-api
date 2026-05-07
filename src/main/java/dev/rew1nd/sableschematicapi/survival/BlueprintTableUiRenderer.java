@@ -18,7 +18,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.inventory.InventorySlots;
 import com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.BlueprintSummary;
-import dev.rew1nd.sableschematicapi.tool.client.storage.BlueprintToolLocalFiles.Entry;
+import dev.rew1nd.sableschematicapi.survival.BlueprintTableLocalFiles.LocalFile;
 import dev.vfyjxf.taffy.style.AlignItems;
 import dev.vfyjxf.taffy.style.FlexDirection;
 import net.minecraft.ChatFormatting;
@@ -46,13 +46,11 @@ public final class BlueprintTableUiRenderer {
     private static final int BUTTON_HOVER_COLOR = ColorPattern.T_BLUE.color;
     private static final int BUTTON_PRESSED_COLOR = ColorPattern.SEAL_BLACK.color;
 
-    private static String selectedFileName = "";
-
     private BlueprintTableUiRenderer() {
     }
 
     public static ModularUI render(final BlueprintTableBlockEntity table, final Player player) {
-        selectedFileName = "";
+        final SelectionState selection = new SelectionState();
 
         final UIElement root = new UIElement()
                 .setId("blueprint_table_root")
@@ -68,7 +66,7 @@ public final class BlueprintTableUiRenderer {
 
         root.addChildren(
                 header(table, player),
-                selectionRow(table, player),
+                selectionRow(table, selection),
                 summaryPanel(table),
                 playerInventoryPanel()
         );
@@ -103,11 +101,11 @@ public final class BlueprintTableUiRenderer {
         return row;
     }
 
-    private static UIElement selectionRow(final BlueprintTableBlockEntity table, final Player player) {
+    private static UIElement selectionRow(final BlueprintTableBlockEntity table, final SelectionState selection) {
         final UIElement row = row("blueprint_table_selection_row");
         row.layout(layout -> layout.heightAuto());
 
-        final BlueprintFileDropdown dropdown = new BlueprintFileDropdown(ROOT_WIDTH - SLOT_SIZE - 20 - GAP * 3);
+        final BlueprintFileDropdown dropdown = new BlueprintFileDropdown(ROOT_WIDTH - SLOT_SIZE - 20 - GAP * 3, selection);
         dropdown.layout(layout -> {
             layout.width(ROOT_WIDTH - SLOT_SIZE - 20 - GAP * 3);
             layout.height(DROPDOWN_HEIGHT);
@@ -131,10 +129,10 @@ public final class BlueprintTableUiRenderer {
                 Component.translatable("sable_schematic_api.blueprint_table.ui.upload")
         );
         upload.setOnClick(event -> {
-            if (selectedFileName.isBlank()) {
+            if (selection.selectedFileName.isBlank()) {
                 return;
             }
-            BlueprintTableUploadHandler.requestUpload(selectedFileName);
+            BlueprintTableLocalFiles.requestUpload(selection.selectedFileName);
         });
         upload.layout(layout -> {
             layout.width(20);
@@ -293,10 +291,16 @@ public final class BlueprintTableUiRenderer {
     /**
      * A compact scroller view that lists local blueprint files and tracks selection.
      */
+    private static final class SelectionState {
+        private String selectedFileName = "";
+    }
+
     private static final class BlueprintFileDropdown extends ScrollerView {
+        private final SelectionState selection;
         private int revision = -1;
 
-        private BlueprintFileDropdown(final float width) {
+        private BlueprintFileDropdown(final float width, final SelectionState selection) {
+            this.selection = selection;
             this.setId("blueprint_table_file_dropdown");
             this.style(style -> style.backgroundTexture(displayBackground()));
             this.viewContainer(container -> container.layout(layout -> {
@@ -305,14 +309,14 @@ public final class BlueprintTableUiRenderer {
                 layout.flexDirection(FlexDirection.COLUMN);
                 layout.gapAll(0);
             }));
-            BlueprintTableClientData.refreshLocalFiles();
+            BlueprintTableLocalFiles.refresh();
             this.refreshEntries();
         }
 
         @Override
         public void screenTick() {
             super.screenTick();
-            final int currentRevision = BlueprintTableClientData.fileListRevision();
+            final int currentRevision = BlueprintTableLocalFiles.revision();
             if (currentRevision != this.revision) {
                 this.revision = currentRevision;
                 this.refreshEntries();
@@ -322,7 +326,7 @@ public final class BlueprintTableUiRenderer {
         private void refreshEntries() {
             clearAllScrollViewChildren();
 
-            final List<Entry> files = BlueprintTableClientData.localFiles();
+            final List<LocalFile> files = BlueprintTableLocalFiles.localFiles();
             if (files.isEmpty()) {
                 final Label empty = new Label();
                 empty.setText(Component.translatable("sable_schematic_api.blueprint_table.ui.no_local_files")
@@ -339,7 +343,7 @@ public final class BlueprintTableUiRenderer {
                 return;
             }
 
-            for (final Entry file : files) {
+            for (final LocalFile file : files) {
                 final Button entry = new Button();
                 entry.setText(Component.literal(file.name()));
                 entry.textStyle(style -> style
@@ -347,7 +351,7 @@ public final class BlueprintTableUiRenderer {
                         .textColor(TEXT_COLOR)
                         .textShadow(false));
                 entry.buttonStyle(style -> {
-                    if (file.name().equals(selectedFileName)) {
+                    if (file.name().equals(this.selection.selectedFileName)) {
                         style.baseTexture(SDFRectTexture.of(BUTTON_HOVER_COLOR).setRadius(1));
                     } else {
                         style.baseTexture(SDFRectTexture.of(FIELD_COLOR).setRadius(1));
@@ -360,7 +364,7 @@ public final class BlueprintTableUiRenderer {
                     layout.height(ROW_HEIGHT);
                 });
                 entry.setOnClick(e -> {
-                    selectedFileName = file.name();
+                    this.selection.selectedFileName = file.name();
                     this.refreshEntries();
                 });
                 addScrollViewChild(entry);

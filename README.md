@@ -118,8 +118,8 @@ Developer documentation is currently maintained in source Javadocs to keep it cl
 
 ## License
 
-Unless otherwise stated, this repository's source code is licensed under the [PolyForm Shield License 1.0.0](LICENSE.md).
+Unless otherwise stated, this repository's source code is licensed under the [MIT License](LICENSE.md).
 
-You may use, distribute, include in modpacks, run on servers, or depend on this mod in non-competing contexts. Do not rename and republish this project as a replacement, and do not impersonate Sable, Sable Schematic API, or an official compatibility build.
+You may use, copy, modify, distribute, sublicense, or include this mod in modpacks under the terms of the MIT License. Please do not impersonate Sable, Sable Schematic API, or an official compatibility build.
 
 Third-party dependencies and jars placed under `libs/` are not covered by this project's source license. Follow their own licenses and distribution terms.

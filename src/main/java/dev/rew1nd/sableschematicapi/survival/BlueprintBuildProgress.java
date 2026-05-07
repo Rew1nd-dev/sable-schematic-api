@@ -1,6 +1,7 @@
 package dev.rew1nd.sableschematicapi.survival;
 
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.BlueprintBuildPhase;
+import dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessOperation;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -10,11 +11,7 @@ import net.minecraft.nbt.Tag;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3d;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Persistent cursor and mapping state for one incremental survival blueprint build.
@@ -28,8 +25,8 @@ public final class BlueprintBuildProgress {
     private final Map<Integer, PlacedSubLevel> placedSubLevels = new LinkedHashMap<>();
     private final Map<UUID, UUID> allocatedUuidMap = new LinkedHashMap<>();
     private final Set<String> appliedOperationKeys = new LinkedHashSet<>();
-    private java.util.List<dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessOperation> postProcessOperations =
-            java.util.List.of();
+    private final Set<SkippedBlock> skippedBlocks = new LinkedHashSet<>();
+    private List<BlueprintPostProcessOperation> postProcessOperations = List.of();
     @Nullable
     private PlacementAnchor placementAnchor;
 
@@ -99,6 +96,18 @@ public final class BlueprintBuildProgress {
         return Set.copyOf(this.appliedOperationKeys);
     }
 
+    public void markBlockSkipped(final int subLevelId, final BlockPos localPos) {
+        this.skippedBlocks.add(new SkippedBlock(subLevelId, localPos));
+    }
+
+    public boolean isBlockSkipped(final int subLevelId, final BlockPos localPos) {
+        return this.skippedBlocks.contains(new SkippedBlock(subLevelId, localPos));
+    }
+
+    public Set<SkippedBlock> skippedBlocks() {
+        return Set.copyOf(this.skippedBlocks);
+    }
+
     public java.util.List<dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessOperation> postProcessOperations() {
         return java.util.List.copyOf(this.postProcessOperations);
     }
@@ -120,6 +129,7 @@ public final class BlueprintBuildProgress {
         final CompoundTag tag = new CompoundTag();
         final ListTag subLevels = new ListTag();
         final ListTag uuids = new ListTag();
+        final ListTag skippedBlocks = new ListTag();
 
         tag.putInt("version", VERSION);
         tag.putString("phase", this.phase.name());
@@ -153,6 +163,14 @@ public final class BlueprintBuildProgress {
             appliedKeys.add(StringTag.valueOf(key));
         }
         tag.put("applied_operation_keys", appliedKeys);
+
+        for (final SkippedBlock skipped : this.skippedBlocks) {
+            final CompoundTag skippedTag = new CompoundTag();
+            skippedTag.putInt("sub_level_id", skipped.subLevelId());
+            skippedTag.put("local_pos", SableBlueprint.writeBlockPos(skipped.localPos()));
+            skippedBlocks.add(skippedTag);
+        }
+        tag.put("skipped_blocks", skippedBlocks);
 
         return tag;
     }
@@ -204,12 +222,30 @@ public final class BlueprintBuildProgress {
             progress.appliedOperationKeys.add(appliedKeys.getString(i));
         }
 
+        final ListTag skippedBlocks = tag.getList("skipped_blocks", Tag.TAG_COMPOUND);
+        for (int i = 0; i < skippedBlocks.size(); i++) {
+            final CompoundTag skippedTag = skippedBlocks.getCompound(i);
+            if (!skippedTag.contains("local_pos", Tag.TAG_COMPOUND)) {
+                continue;
+            }
+            progress.skippedBlocks.add(new SkippedBlock(
+                    skippedTag.getInt("sub_level_id"),
+                    SableBlueprint.readBlockPos(skippedTag.getCompound("local_pos"))
+            ));
+        }
+
         return progress;
     }
 
     public record PlacedSubLevel(int blueprintId, UUID sourceUuid, UUID placedUuid, BlockPos blockOrigin) {
         public PlacedSubLevel {
             blockOrigin = blockOrigin.immutable();
+        }
+    }
+
+    public record SkippedBlock(int subLevelId, BlockPos localPos) {
+        public SkippedBlock {
+            localPos = localPos.immutable();
         }
     }
 
