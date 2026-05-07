@@ -8,6 +8,7 @@ import dev.rew1nd.sableschematicapi.api.blueprint.survival.BlueprintSummary;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.CostLine;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.CostQuote;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
+import dev.rew1nd.sableschematicapi.compat.create.CreateBlueprintCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -21,6 +22,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,7 +34,8 @@ import java.util.stream.Collectors;
 
 public class BlueprintCannonBlockEntity extends BlockEntity {
     public static final int BLUEPRINT_SLOT = 0;
-    public static final int SLOT_COUNT = 1;
+    public static final int CLIPBOARD_SLOT = 1;
+    public static final int SLOT_COUNT = 2;
     private static final int DEFAULT_PRINT_INTERVAL_TICKS = 4;
     private static final int MIN_PRINT_INTERVAL_TICKS = 1;
     private static final int MAX_PRINT_INTERVAL_TICKS = 200;
@@ -54,17 +57,38 @@ public class BlueprintCannonBlockEntity extends BlockEntity {
     private final ItemStackHandler inventory = new ItemStackHandler(SLOT_COUNT) {
         @Override
         public int getSlotLimit(final int slot) {
-            return slot == BLUEPRINT_SLOT ? 1 : super.getSlotLimit(slot);
+            return slot == BLUEPRINT_SLOT || slot == CLIPBOARD_SLOT ? 1 : super.getSlotLimit(slot);
         }
 
         @Override
         public boolean isItemValid(final int slot, final ItemStack stack) {
-            return slot == BLUEPRINT_SLOT && BlueprintDataItem.isBlueprintItem(stack);
+            return switch (slot) {
+                case BLUEPRINT_SLOT -> BlueprintDataItem.isBlueprintItem(stack);
+                case CLIPBOARD_SLOT -> ModList.get().isLoaded("create") && CreateBlueprintCompat.isClipboard(stack);
+                default -> false;
+            };
         }
 
         @Override
         protected void onContentsChanged(final int slot) {
             BlueprintCannonBlockEntity.this.onInventoryChanged(slot);
+        }
+
+        @Override
+        protected void onLoad() {
+            this.ensureFixedSize();
+        }
+
+        private void ensureFixedSize() {
+            if (this.stacks.size() == SLOT_COUNT) {
+                return;
+            }
+
+            final List<ItemStack> existing = new java.util.ArrayList<>(this.stacks);
+            this.setSize(SLOT_COUNT);
+            for (int i = 0; i < Math.min(existing.size(), SLOT_COUNT); i++) {
+                this.stacks.set(i, existing.get(i));
+            }
         }
     };
 
@@ -186,6 +210,95 @@ public class BlueprintCannonBlockEntity extends BlockEntity {
         this.setPrintIntervalTicks(this.printIntervalTicks + 1);
     }
 
+    public void skipCurrentBlock() {
+        if (this.level == null || this.level.isClientSide()) {
+            return;
+        }
+        if (this.lastStatus != BlueprintBuildStatus.WAITING_FOR_MATERIALS) {
+            this.updateLastResult(this.lastStatus, "Skip is only available while waiting for block materials.", this.lastMissing, this.lastAffectedBlocks);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        final ItemStack blueprintStack = this.inventory.getStackInSlot(BLUEPRINT_SLOT);
+        if (!BlueprintDataItem.hasPayload(blueprintStack)) {
+            this.active = false;
+            this.updateLastResult(BlueprintBuildStatus.IDLE, "Insert a survival blueprint.", "", 0);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        final Optional<SableBlueprint> blueprint = this.resolveBlueprint((ServerLevel) this.level, blueprintStack);
+        if (blueprint.isEmpty()) {
+            this.active = false;
+            this.progress.setPhase(BlueprintBuildPhase.FAILED);
+            this.printCooldownTicks = 0;
+            this.updateLastResult(BlueprintBuildStatus.FAILED, "Failed to read blueprint item payload.", "", 0);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        final BlueprintBuildStepResult result = SableBlueprintIncrementalPlacer.skipCurrentBlock(
+                (ServerLevel) this.level,
+                blueprint.get(),
+                BlueprintPlacementPlan.forCannon(blueprint.get(), this.worldPosition, this.progress, PRINT_PADDING_BLOCKS),
+                this.progress
+        );
+
+        this.printCooldownTicks = 0;
+        this.updateLastResult(result.status(), result.message().getString(), describeMissing(result), result.affectedBlocks());
+        if (result.status() == BlueprintBuildStatus.DONE || result.status() == BlueprintBuildStatus.FAILED) {
+            this.active = false;
+        }
+        this.refreshEstimatedBudget();
+        this.markDirtyAndSync();
+    }
+
+    public void writeBudgetToClipboard() {
+        if (this.level == null || this.level.isClientSide()) {
+            return;
+        }
+        if (!ModList.get().isLoaded("create")) {
+            this.updateLastResult(this.lastStatus, "Create is not loaded.", this.lastMissing, this.lastAffectedBlocks);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        final ItemStack clipboard = this.inventory.getStackInSlot(CLIPBOARD_SLOT);
+        if (clipboard.isEmpty() || !CreateBlueprintCompat.isClipboard(clipboard)) {
+            this.updateLastResult(this.lastStatus, "Insert a Create clipboard.", this.lastMissing, this.lastAffectedBlocks);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        final ItemStack blueprintStack = this.inventory.getStackInSlot(BLUEPRINT_SLOT);
+        if (!BlueprintDataItem.hasPayload(blueprintStack)) {
+            this.updateLastResult(BlueprintBuildStatus.IDLE, "Insert a survival blueprint.", "", 0);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        final Optional<SableBlueprint> blueprint = this.resolveBlueprint((ServerLevel) this.level, blueprintStack);
+        if (blueprint.isEmpty()) {
+            this.updateLastResult(BlueprintBuildStatus.FAILED, "Failed to read blueprint item payload.", "", 0);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        final CostQuote quote = SableBlueprintIncrementalPlacer.estimateRemainingCost(
+                (ServerLevel) this.level, blueprint.get(), this.progress);
+        this.estimatedBudget = this.budgetLinesFor((ServerLevel) this.level, quote);
+        if (!CreateBlueprintCompat.writeBudgetToClipboard(clipboard, this.estimatedBudget)) {
+            this.updateLastResult(this.lastStatus, "Failed to write Create clipboard.", this.lastMissing, this.lastAffectedBlocks);
+            this.markDirtyAndSync();
+            return;
+        }
+
+        this.inventory.setStackInSlot(CLIPBOARD_SLOT, clipboard);
+        this.updateLastResult(this.lastStatus, "Clipboard checklist updated.", this.lastMissing, this.lastAffectedBlocks);
+        this.markDirtyAndSync();
+    }
+
     public Component speedLine() {
         return Component.translatable("sable_schematic_api.blueprint_cannon.ui.speed", this.printIntervalTicks);
     }
@@ -274,15 +387,19 @@ public class BlueprintCannonBlockEntity extends BlockEntity {
 
         final CostQuote quote = SableBlueprintIncrementalPlacer.estimateRemainingCost(
                 (ServerLevel) this.level, blueprint.get(), this.progress);
+        this.estimatedBudget = this.budgetLinesFor((ServerLevel) this.level, quote);
+        this.markDirtyAndSync();
+    }
+
+    private List<BudgetLine> budgetLinesFor(final ServerLevel level, final CostQuote quote) {
         final List<BudgetLine> lines = new java.util.ArrayList<>();
         for (final CostLine costLine : quote.lines()) {
             final ItemStack stack = costLine.stack();
             final BlueprintCannonMaterialBudget.Availability availability = BlueprintCannonMaterialBudget.availability(
-                    (ServerLevel) this.level, this.worldPosition, stack.copyWithCount(1));
+                    level, this.worldPosition, stack.copyWithCount(1));
             lines.add(new BudgetLine(stack.copyWithCount(1), stack.getCount(), availability.available(), availability.unlimited()));
         }
-        this.estimatedBudget = List.copyOf(lines);
-        this.markDirtyAndSync();
+        return List.copyOf(lines);
     }
 
     private void tickServer(final ServerLevel level, final BlockState state) {

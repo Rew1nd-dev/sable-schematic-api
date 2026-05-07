@@ -1,6 +1,7 @@
 package dev.rew1nd.sableschematicapi;
 
 import dev.rew1nd.sableschematicapi.compat.create.client.CreateBlueprintToolClientCompat;
+import dev.rew1nd.sableschematicapi.survival.client.BlueprintTableClientLocalFiles;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolClientEvents;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolKeyMappings;
 import net.neoforged.api.distmarker.Dist;
@@ -19,6 +20,8 @@ public final class SableSchematicApiClient {
 
     private static void clientSetup(final FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
+            BlueprintTableClientLocalFiles.register();
+
             if (ModList.get().isLoaded("create")) {
                 CreateBlueprintToolClientCompat.register();
             }

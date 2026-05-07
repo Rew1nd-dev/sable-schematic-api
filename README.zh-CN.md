@@ -115,9 +115,8 @@ dev.rew1nd.sableschematicapi.api.blueprint
 
 ## 许可
 
-除非另有说明，本仓库源码采用 [PolyForm Shield License 1.0.0](LICENSE.md)。
+除非另有说明，本仓库源码采用 [MIT License](LICENSE.md)。
 
-你可以在非竞争性场景中使用、分发、打包到 modpack、作为服务端依赖或开发依赖使用本 mod。不要把本项目改名后作为替代品重新发布，不要冒充 Sable、Sable Schematic API 或其官方兼容版本。
+你可以在 MIT License 条款下使用、复制、修改、分发、再许可本项目源码，或将本 mod 打包到 modpack 中。请不要冒充 Sable、Sable Schematic API 或其官方兼容版本。
 
 第三方依赖和本地 `libs/` 中的 jar 不属于本项目源码许可覆盖范围，请遵循它们各自的许可证和发布条款。
-

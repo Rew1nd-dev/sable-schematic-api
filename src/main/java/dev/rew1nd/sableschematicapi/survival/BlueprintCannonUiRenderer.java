@@ -36,6 +36,7 @@ public final class BlueprintCannonUiRenderer {
     private static final float ROOT_WIDTH = LEFT_PANEL_WIDTH + RIGHT_PANEL_WIDTH + GAP + 12;
     private static final float ROW_HEIGHT = 14;
     private static final float SLOT_SIZE = 18;
+    private static final float BUDGET_HEADER_HEIGHT = SLOT_SIZE;
     private static final float PLAYER_INVENTORY_HEIGHT = SLOT_SIZE * 4 + 5;
     private static final float INNER_GAP = 2;
     private static final float PANEL_PADDING = 4;
@@ -44,7 +45,7 @@ public final class BlueprintCannonUiRenderer {
     private static final float BLUEPRINT_PANEL_HEIGHT = ROW_HEIGHT + SLOT_SIZE + INNER_GAP + PANEL_PADDING * 2;
     private static final float PLAYER_INVENTORY_PANEL_HEIGHT = ROW_HEIGHT + PLAYER_INVENTORY_HEIGHT + INNER_GAP + PANEL_PADDING * 2;
     private static final float RIGHT_PANEL_HEIGHT = ROW_HEIGHT + STATUS_PANEL_HEIGHT + BLUEPRINT_PANEL_HEIGHT + PLAYER_INVENTORY_PANEL_HEIGHT + GAP * 3;
-    private static final float BUDGET_LIST_HEIGHT = RIGHT_PANEL_HEIGHT - ROW_HEIGHT - GAP - BUDGET_PANEL_PADDING * 2;
+    private static final float BUDGET_LIST_HEIGHT = RIGHT_PANEL_HEIGHT - BUDGET_HEADER_HEIGHT - GAP - BUDGET_PANEL_PADDING * 2;
     private static final float BUDGET_ROW_WIDTH = LEFT_PANEL_WIDTH - BUDGET_PANEL_PADDING * 2 - 10;
     private static final int TEXT_COLOR = ColorPattern.WHITE.color;
     private static final int MUTED_TEXT_COLOR = ColorPattern.LIGHT_GRAY.color;
@@ -102,16 +103,19 @@ public final class BlueprintCannonUiRenderer {
 
 
         final UIElement row = row("blueprint_cannon_header_left");
+        row.layout(layout -> layout.height(BUDGET_HEADER_HEIGHT));
         final Label title = label(Horizontal.LEFT, TEXT_COLOR);
         title.setText(Component.translatable("block.sable_schematic_api.blueprint_budget"));
         title.layout(layout -> {
             layout.flex(1);
-            layout.height(ROW_HEIGHT);
+            layout.height(BUDGET_HEADER_HEIGHT);
         });
 
+        final ItemSlot clipboardSlot = createClipboardSlot(blockEntity);
+        final Button writeClipboard = createWriteClipboardButton(blockEntity);
         final Button refresh = createRefreshButton(blockEntity);
 
-        row.addChildren(title, refresh);
+        row.addChildren(title, clipboardSlot, writeClipboard, refresh);
 
         final UIElement panel = new UIElement()
             .setId("blueprint_cannon_budget_panel")
@@ -151,11 +155,43 @@ public final class BlueprintCannonUiRenderer {
         refresh.setOnServerClick(event -> blockEntity.refreshEstimatedBudget());
         refresh.layout(layout -> {
             layout.width(18);
-            layout.height(ROW_HEIGHT);
+            layout.height(SLOT_SIZE);
             layout.flexShrink(0);
             layout.paddingAll(0);
         });
         return refresh;
+    }
+
+    private static @NotNull ItemSlot createClipboardSlot(final BlueprintCannonBlockEntity blockEntity) {
+        final ItemHandlerSlot handlerSlot = new ItemHandlerSlot(blockEntity.inventory(), BlueprintCannonBlockEntity.CLIPBOARD_SLOT)
+                .setCanPlace(stack -> blockEntity.inventory().isItemValid(BlueprintCannonBlockEntity.CLIPBOARD_SLOT, stack));
+        final ItemSlot itemSlot = new ItemSlot(handlerSlot);
+        itemSlot.setId("blueprint_cannon_clipboard_slot");
+        itemSlot.slotStyle(style -> style
+                .quickMovePriority(90)
+                .acceptQuickMove(true)
+                .isPlayerSlot(false));
+        itemSlot.layout(layout -> {
+            layout.width(SLOT_SIZE);
+            layout.height(SLOT_SIZE);
+            layout.flexShrink(0);
+        });
+        return itemSlot;
+    }
+
+    private static @NotNull Button createWriteClipboardButton(final BlueprintCannonBlockEntity blockEntity) {
+        final Button write = iconButton(
+                Icons.SAVE,
+                Component.translatable("sable_schematic_api.blueprint_cannon.ui.write_clipboard")
+        );
+        write.setOnServerClick(event -> blockEntity.writeBudgetToClipboard());
+        write.layout(layout -> {
+            layout.width(SLOT_SIZE);
+            layout.height(SLOT_SIZE);
+            layout.flexShrink(0);
+            layout.paddingAll(0);
+        });
+        return write;
     }
 
     private static UIElement rightPanel(final BlueprintCannonBlockEntity blockEntity, final Player player) {
@@ -226,9 +262,27 @@ public final class BlueprintCannonUiRenderer {
                 statusLabel(blockEntity::progressLine, MUTED_TEXT_COLOR),
                 statusLabel(blockEntity::sourceLine, MUTED_TEXT_COLOR),
                 //speedRow(blockEntity),
-                statusLabel(blockEntity::missingLine, MUTED_TEXT_COLOR)
+                missingRow(blockEntity)
         );
         return panel;
+    }
+
+    private static UIElement missingRow(final BlueprintCannonBlockEntity blockEntity) {
+        final UIElement row = row("blueprint_cannon_missing_row");
+        final Button skip = textButton(
+                Component.literal(">"),
+                Component.translatable("sable_schematic_api.blueprint_cannon.ui.skip_current")
+        );
+        skip.setOnServerClick(event -> blockEntity.skipCurrentBlock());
+
+        final StatusLabel missing = statusLabel(blockEntity::missingLine, MUTED_TEXT_COLOR);
+        missing.layout(layout -> {
+            layout.flex(1);
+            layout.height(ROW_HEIGHT);
+        });
+
+        row.addChildren(skip, missing);
+        return row;
     }
 
     private static UIElement blueprintPanel(final BlueprintCannonBlockEntity blockEntity) {
@@ -394,6 +448,23 @@ public final class BlueprintCannonUiRenderer {
         button.layout(layout -> {
             layout.width(18);
             layout.height(ROW_HEIGHT);
+            layout.paddingAll(0);
+        });
+        return button;
+    }
+
+    private static Button textButton(final Component text, final Component tooltip) {
+        final Button button = new Button();
+        button.setText(text);
+        button.style(style -> style.tooltips(tooltip));
+        button.buttonStyle(style -> style
+                .baseTexture(buttonTexture(BUTTON_COLOR, BORDER_COLOR))
+                .hoverTexture(buttonTexture(BUTTON_HOVER_COLOR, BORDER_COLOR))
+                .pressedTexture(buttonTexture(BUTTON_PRESSED_COLOR, BORDER_COLOR)));
+        button.layout(layout -> {
+            layout.width(18);
+            layout.height(ROW_HEIGHT);
+            layout.flexShrink(0);
             layout.paddingAll(0);
         });
         return button;
