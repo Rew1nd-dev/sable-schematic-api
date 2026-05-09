@@ -7,6 +7,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
+import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintDecodeResult;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintRootFiles;
 import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolResult;
 import dev.rew1nd.sableschematicapi.blueprint.tool.BlueprintToolService;
@@ -152,7 +153,8 @@ public final class SableBlueprintCommands {
         final String name = StringArgumentType.getString(ctx, "name");
 
         try {
-            final SableBlueprint blueprint = SableBlueprintRootFiles.load(source.getServer(), name);
+            final SableBlueprintDecodeResult decoded = SableBlueprintRootFiles.loadWithDiagnostics(source.getServer(), name);
+            final SableBlueprint blueprint = decoded.blueprint();
             final byte[] data = BlueprintPayloads.writeCompressed(blueprint);
             final byte[] hash = BlueprintPayloads.sha256(data);
             final var summary = dev.rew1nd.sableschematicapi.api.blueprint.survival.BlueprintSummary.of(blueprint);
@@ -163,6 +165,12 @@ public final class SableBlueprintCommands {
                 player.drop(stack, false);
             }
             source.sendSuccess(() -> Component.literal("Created survival blueprint item from Sable-Schematics: " + name), true);
+            if (!decoded.diagnostics().isEmpty()) {
+                source.sendSuccess(decoded.diagnostics()::summaryComponent, false);
+                for (final Component component : decoded.diagnostics().detailComponents()) {
+                    source.sendSuccess(() -> component, false);
+                }
+            }
             return 1;
         } catch (final IOException | RuntimeException e) {
             source.sendFailure(Component.literal("Failed to create survival blueprint item: " + e.getMessage()));
@@ -175,6 +183,18 @@ public final class SableBlueprintCommands {
             source.sendSuccess(result::asComponent, true);
         } else {
             source.sendFailure(result.asComponent());
+        }
+        sendDiagnostics(source, result);
+    }
+
+    private static void sendDiagnostics(final CommandSourceStack source, final BlueprintToolResult result) {
+        if (result.diagnostics().isEmpty()) {
+            return;
+        }
+
+        source.sendSuccess(result.diagnostics()::summaryComponent, false);
+        for (final Component component : result.diagnostics().detailComponents()) {
+            source.sendSuccess(() -> component, false);
         }
     }
 

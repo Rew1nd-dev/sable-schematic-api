@@ -1,6 +1,9 @@
 package dev.rew1nd.sableschematicapi.blueprint.tool;
 
+import dev.rew1nd.sableschematicapi.SableSchematicApi;
+import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintDiagnosticReport;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
+import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintDecodeResult;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintFiles;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintPlacer;
@@ -32,9 +35,15 @@ public final class BlueprintToolService {
 
     public static BlueprintToolResult inspect(final MinecraftServer server, final String name) {
         try {
-            final SableBlueprint blueprint = SableBlueprintFiles.load(server, name);
+            final SableBlueprintDecodeResult decoded = SableBlueprintFiles.loadWithDiagnostics(server, name);
+            final SableBlueprint blueprint = decoded.blueprint();
             final BlueprintToolSummary summary = BlueprintToolSummary.of(blueprint);
-            return BlueprintToolResult.success("Blueprint '%s': %s.".formatted(name, summary.describe()), blueprint.subLevels().size(), summary);
+            return BlueprintToolResult.success(
+                    "Blueprint '%s': %s.".formatted(name, summary.describe()),
+                    blueprint.subLevels().size(),
+                    summary,
+                    decoded.diagnostics()
+            );
         } catch (final IOException | IllegalArgumentException e) {
             return BlueprintToolResult.failure("Failed to inspect Sable blueprint: " + e.getMessage());
         }
@@ -98,13 +107,17 @@ public final class BlueprintToolService {
                                            final Vec3 origin,
                                            final String name) {
         try {
-            final SableBlueprint blueprint = SableBlueprintFiles.load(server, name);
+            final SableBlueprintDecodeResult decoded = SableBlueprintFiles.loadWithDiagnostics(server, name);
+            final SableBlueprint blueprint = decoded.blueprint();
             final SableBlueprintPlacer.Result result = SableBlueprintPlacer.place(level, blueprint, origin);
+            final BlueprintDiagnosticReport diagnostics = decoded.diagnostics().merge(result.diagnostics());
+            diagnostics.logSummary(SableSchematicApi.LOGGER, "Loaded Sable blueprint '" + name + "'");
             final BlueprintToolSummary summary = BlueprintToolSummary.of(blueprint);
             return BlueprintToolResult.success(
                     "Loaded Sable blueprint '%s' with %s.".formatted(name, summary.describe()),
                     result.placedSubLevels(),
-                    summary
+                    summary,
+                    diagnostics
             );
         } catch (final IOException | IllegalArgumentException | IllegalStateException e) {
             return BlueprintToolResult.failure("Failed to load Sable blueprint: " + e.getMessage());
@@ -116,14 +129,18 @@ public final class BlueprintToolService {
                                                 final byte[] data,
                                                 final String name) {
         try {
-            final SableBlueprint blueprint = readFromBytes(data);
+            final SableBlueprintDecodeResult decoded = readFromBytes(data);
+            final SableBlueprint blueprint = decoded.blueprint();
             final BlueprintPlacementPlan placementPlan = BlueprintPlacementPlan.forLookTarget(blueprint, origin, TOOL_LOAD_SPACING);
             final SableBlueprintPlacer.Result result = SableBlueprintPlacer.place(level, blueprint, placementPlan);
+            final BlueprintDiagnosticReport diagnostics = decoded.diagnostics().merge(result.diagnostics());
+            diagnostics.logSummary(SableSchematicApi.LOGGER, "Loaded uploaded Sable blueprint '" + name + "'");
             final BlueprintToolSummary summary = BlueprintToolSummary.of(blueprint);
             return BlueprintToolResult.success(
                     "Loaded Sable blueprint '%s' with %s.".formatted(name, summary.describe()),
                     result.placedSubLevels(),
-                    summary
+                    summary,
+                    diagnostics
             );
         } catch (final IOException | IllegalArgumentException | IllegalStateException e) {
             return BlueprintToolResult.failure("Failed to load Sable blueprint: " + e.getMessage());
@@ -137,10 +154,10 @@ public final class BlueprintToolService {
         }
     }
 
-    private static SableBlueprint readFromBytes(final byte[] data) throws IOException {
+    private static SableBlueprintDecodeResult readFromBytes(final byte[] data) throws IOException {
         try (final ByteArrayInputStream stream = new ByteArrayInputStream(data)) {
             final CompoundTag tag = NbtIo.readCompressed(stream, NbtAccounter.unlimitedHeap());
-            return SableBlueprint.load(tag);
+            return SableBlueprint.loadWithDiagnostics(tag);
         }
     }
 }

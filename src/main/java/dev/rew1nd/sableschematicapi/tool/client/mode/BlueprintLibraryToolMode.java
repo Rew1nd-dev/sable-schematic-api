@@ -1,11 +1,13 @@
 package dev.rew1nd.sableschematicapi.tool.client.mode;
 
+import com.lowdragmc.lowdraglib2.gui.texture.IGuiTexture;
+import com.lowdragmc.lowdraglib2.gui.texture.Icons;
 import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolInputContext;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolInputResult;
 import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolSelectionPreviewRenderers;
 import dev.rew1nd.sableschematicapi.tool.client.session.BlueprintToolClientSession;
-import dev.rew1nd.sableschematicapi.tool.ui.BlueprintToolUiRenderer;
+import dev.rew1nd.sableschematicapi.tool.ui.blueprint.BlueprintToolBlueprintPage;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -23,8 +25,13 @@ public final class BlueprintLibraryToolMode implements BlueprintToolMode {
     }
 
     @Override
+    public IGuiTexture icon() {
+        return Icons.OPEN_FILE;
+    }
+
+    @Override
     public UIElement createPage(final Player player) {
-        return BlueprintToolUiRenderer.blueprintPage(player);
+        return BlueprintToolBlueprintPage.create(player);
     }
 
     @Override

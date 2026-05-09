@@ -34,6 +34,7 @@ public class BlueprintPlaceSession {
     private final List<BlueprintPlacedBlock> placedBlocks = new ObjectArrayList<>();
     private final List<Runnable> afterBlockEntityTasks = new ObjectArrayList<>();
     private final CompoundTag globalExtraData;
+    private final BlueprintDiagnosticReport.Builder diagnostics;
     private BlueprintPlacePhase phase = BlueprintPlacePhase.DECODE;
 
     /**
@@ -44,9 +45,25 @@ public class BlueprintPlaceSession {
      * @param globalExtraData blueprint sidecar data copied from the saved blueprint
      */
     public BlueprintPlaceSession(final ServerLevel level, final Vector3dc origin, final CompoundTag globalExtraData) {
+        this(level, origin, globalExtraData, BlueprintDiagnosticReport.builder());
+    }
+
+    /**
+     * Creates a placement session.
+     *
+     * @param level           target server level
+     * @param origin          placement origin
+     * @param globalExtraData blueprint sidecar data copied from the saved blueprint
+     * @param diagnostics     diagnostic collector for recoverable placement issues
+     */
+    public BlueprintPlaceSession(final ServerLevel level,
+                                 final Vector3dc origin,
+                                 final CompoundTag globalExtraData,
+                                 final BlueprintDiagnosticReport.Builder diagnostics) {
         this.level = level;
         this.origin = new Vector3d(origin);
         this.globalExtraData = globalExtraData.copy();
+        this.diagnostics = diagnostics;
     }
 
     /**
@@ -94,6 +111,24 @@ public class BlueprintPlaceSession {
      */
     public CompoundTag globalExtraData() {
         return this.globalExtraData;
+    }
+
+    /**
+     * Returns the diagnostic collector for recoverable placement issues.
+     *
+     * @return diagnostic collector
+     */
+    public BlueprintDiagnosticReport.Builder diagnostics() {
+        return this.diagnostics;
+    }
+
+    /**
+     * Builds a snapshot of placement diagnostics recorded so far.
+     *
+     * @return placement diagnostic report
+     */
+    public BlueprintDiagnosticReport diagnosticReport() {
+        return this.diagnostics.build();
     }
 
     /**
@@ -269,7 +304,21 @@ public class BlueprintPlaceSession {
      */
     public void runAfterBlockEntityTasks() {
         for (final Runnable task : this.afterBlockEntityTasks) {
-            task.run();
+            try {
+                task.run();
+            } catch (final RuntimeException e) {
+                this.diagnostics.warn(
+                        BlueprintDiagnosticStage.AFTER_BLOCK_ENTITIES,
+                        BlueprintDiagnosticCategory.TASK_FAILED,
+                        null,
+                        null,
+                        null,
+                        task.getClass().getName(),
+                        "Skipped incompatible blueprint post-load task.",
+                        "Blueprint after-block-entity task failed.",
+                        e
+                );
+            }
         }
         this.afterBlockEntityTasks.clear();
     }

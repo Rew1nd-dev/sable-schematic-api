@@ -36,7 +36,7 @@ public final class BlueprintCannonUiRenderer {
     private static final float ROOT_WIDTH = LEFT_PANEL_WIDTH + RIGHT_PANEL_WIDTH + GAP + 12;
     private static final float ROW_HEIGHT = 14;
     private static final float SLOT_SIZE = 18;
-    private static final float BUDGET_HEADER_HEIGHT = SLOT_SIZE;
+    private static final float BUDGET_HEADER_HEIGHT = ROW_HEIGHT;
     private static final float PLAYER_INVENTORY_HEIGHT = SLOT_SIZE * 4 + 5;
     private static final float INNER_GAP = 2;
     private static final float PANEL_PADDING = 4;
