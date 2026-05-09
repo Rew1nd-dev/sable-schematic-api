@@ -137,6 +137,12 @@ public final class BlueprintToolServerActions {
         SableSchematicApiPackets.notify(player,
                 result.success() ? SableSchematicApiPackets.tr("status.placed", name) : SableSchematicApiPackets.tr("status.place_failed"),
                 result.success() ? ChatFormatting.GREEN : ChatFormatting.RED);
+        if (!result.diagnostics().isEmpty()) {
+            SableSchematicApiPackets.notify(player, result.diagnostics().summaryComponent(), ChatFormatting.YELLOW);
+            for (final Component component : result.diagnostics().detailComponents()) {
+                SableSchematicApiPackets.notify(player, component, ChatFormatting.YELLOW);
+            }
+        }
     }
 
     private static void handleDeleteLookedSubLevel(final ServerPlayer player, final CompoundTag data) {

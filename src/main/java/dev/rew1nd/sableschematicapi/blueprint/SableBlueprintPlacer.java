@@ -3,6 +3,9 @@ package dev.rew1nd.sableschematicapi.blueprint;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockPlaceContext;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockRef;
+import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintDiagnosticCategory;
+import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintDiagnosticReport;
+import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintDiagnosticStage;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintEntityPlaceContext;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlacePhase;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession;
@@ -34,6 +37,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
@@ -55,7 +59,8 @@ public final class SableBlueprintPlacer {
             throw new IllegalStateException("No Sable sub-level container is available for this level");
         }
 
-        final BlueprintPlaceSession session = new BlueprintPlaceSession(level, placementPlan.origin(), blueprint.globalExtraData());
+        final BlueprintDiagnosticReport.Builder diagnostics = BlueprintDiagnosticReport.builder();
+        final BlueprintPlaceSession session = new BlueprintPlaceSession(level, placementPlan.origin(), blueprint.globalExtraData(), diagnostics);
         final SubLevelPhysicsSystem physicsSystem = container.physicsSystem();
         final List<PlacedBlock> placedBlocks = new ObjectArrayList<>();
 
@@ -84,22 +89,41 @@ public final class SableBlueprintPlacer {
                 final ServerSubLevel subLevel = requirePlacedSubLevel(session, entry);
 
                 for (final SableBlueprint.BlockData block : entry.blocks()) {
-                    final BlockState state = entry.blockPalette().get(block.paletteId());
-                    final BlockPos storagePos = requireMappedBlock(session, entry, block.localPos());
-                    ensureChunk(subLevel, storagePos);
+                    final @Nullable BlockState state = placedBlockState(session, entry, block);
+                    if (state == null) {
+                        continue;
+                    }
 
-                    final LevelChunk chunk = level.getChunk(SectionPos.blockToSectionCoord(storagePos.getX()), SectionPos.blockToSectionCoord(storagePos.getZ()));
-                    final BlockState oldState = chunk.setBlockState(storagePos, state, false);
-                    final BlueprintPlacedBlock placedBlock = session.recordPlacedBlock(
-                            entry.id(),
-                            entry.sourceUuid(),
-                            subLevel,
-                            block.localPos(),
-                            storagePos,
-                            state,
-                            block.blockEntityDataId()
-                    );
-                    placedBlocks.add(new PlacedBlock(entry, block, placedBlock, subLevel, storagePos, state, oldState != null ? oldState : Blocks.AIR.defaultBlockState()));
+                    BlockPos storagePos = null;
+                    try {
+                        storagePos = requireMappedBlock(session, entry, block.localPos());
+                        ensureChunk(subLevel, storagePos);
+
+                        final LevelChunk chunk = level.getChunk(SectionPos.blockToSectionCoord(storagePos.getX()), SectionPos.blockToSectionCoord(storagePos.getZ()));
+                        final BlockState oldState = chunk.setBlockState(storagePos, state, false);
+                        final BlueprintPlacedBlock placedBlock = session.recordPlacedBlock(
+                                entry.id(),
+                                entry.sourceUuid(),
+                                subLevel,
+                                block.localPos(),
+                                storagePos,
+                                state,
+                                block.blockEntityDataId()
+                        );
+                        placedBlocks.add(new PlacedBlock(entry, block, placedBlock, subLevel, storagePos, state, oldState != null ? oldState : Blocks.AIR.defaultBlockState()));
+                    } catch (final RuntimeException e) {
+                        session.diagnostics().warn(
+                                BlueprintDiagnosticStage.PLACE_BLOCK_STATES,
+                                BlueprintDiagnosticCategory.BLOCK_PLACE_FAILED,
+                                entry.id(),
+                                block.localPos(),
+                                storagePos,
+                                state.getBlock().builtInRegistryHolder().key().location().toString(),
+                                "Skipped a blueprint block that could not be placed.",
+                                "Failed to place blueprint block.",
+                                e
+                        );
+                    }
                 }
             }
         } finally {
@@ -123,7 +147,7 @@ public final class SableBlueprintPlacer {
         placeEntities(session, blueprint);
 
         session.setPhase(BlueprintPlacePhase.WORLD_UPDATES);
-        notifyPlacedBlocks(level, placedBlocks);
+        notifyPlacedBlocks(session, placedBlocks);
 
         session.setPhase(BlueprintPlacePhase.AFTER_PLACE);
         SableBlueprintEventRegistry.placeAfterBlocks(session);
@@ -134,6 +158,21 @@ public final class SableBlueprintPlacer {
             final ServerSubLevel subLevel = requirePlacedSubLevel(session, entry);
 
             if (subLevel.getPlot().getBoundingBox() == BoundingBox3i.EMPTY || subLevel.getPlot().getBoundingBox().volume() <= 0) {
+                if (!hasPlacedBlocks(entry, placedBlocks)) {
+                    container.removeSubLevel(subLevel, SubLevelRemovalReason.REMOVED);
+                    session.diagnostics().warn(
+                            BlueprintDiagnosticStage.FINALIZE,
+                            BlueprintDiagnosticCategory.SKIPPED_BLOCK,
+                            entry.id(),
+                            null,
+                            null,
+                            "empty sub-level",
+                            "Skipped an empty blueprint sub-level.",
+                            "Removed placed sub-level " + entry.id() + " because no blocks were placed.",
+                            null
+                    );
+                    continue;
+                }
                 container.removeSubLevel(subLevel, SubLevelRemovalReason.REMOVED);
                 throw new IllegalStateException("Loaded blueprint sub-level " + entry.id() + " has empty plot bounds");
             }
@@ -148,7 +187,52 @@ public final class SableBlueprintPlacer {
             placed++;
         }
 
-        return new Result(placed, session.subLevelUuidMap());
+        return new Result(placed, session.subLevelUuidMap(), session.diagnosticReport());
+    }
+
+    private static boolean hasPlacedBlocks(final SableBlueprint.SubLevelData entry, final List<PlacedBlock> placedBlocks) {
+        for (final PlacedBlock placedBlock : placedBlocks) {
+            if (placedBlock.entry().id() == entry.id()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static @Nullable BlockState placedBlockState(final BlueprintPlaceSession session,
+                                                         final SableBlueprint.SubLevelData entry,
+                                                         final SableBlueprint.BlockData block) {
+        if (block.paletteId() < 0 || block.paletteId() >= entry.blockPalette().size()) {
+            session.diagnostics().warn(
+                    BlueprintDiagnosticStage.PLACE_BLOCK_STATES,
+                    BlueprintDiagnosticCategory.INVALID_PALETTE_REFERENCE,
+                    entry.id(),
+                    block.localPos(),
+                    null,
+                    "palette #" + block.paletteId(),
+                    "Skipped a blueprint block with an invalid palette reference.",
+                    "Skipped blueprint block because palette id " + block.paletteId() + " is outside palette size " + entry.blockPalette().size() + ".",
+                    null
+            );
+            return null;
+        }
+
+        if (!entry.isPaletteAvailable(block.paletteId())) {
+            session.diagnostics().warn(
+                    BlueprintDiagnosticStage.PLACE_BLOCK_STATES,
+                    BlueprintDiagnosticCategory.SKIPPED_BLOCK,
+                    entry.id(),
+                    block.localPos(),
+                    null,
+                    "palette #" + block.paletteId(),
+                    "Skipped a blueprint block from a missing or invalid block state.",
+                    "Skipped blueprint block because palette #" + block.paletteId() + " was unavailable during decode.",
+                    null
+            );
+            return null;
+        }
+
+        return entry.blockPalette().get(block.paletteId());
     }
 
     private static BlockPos placedBlocksOrigin(final ServerSubLevel subLevel, final BoundingBox3i localBounds) {
@@ -190,24 +274,48 @@ public final class SableBlueprintPlacer {
 
     private static void loadBlockEntity(final BlueprintPlaceSession session, final PlacedBlock placedBlock) {
         final SableBlueprint.SubLevelData entry = placedBlock.entry();
-        final CompoundTag tag = entry.blockEntities().get(placedBlock.block().blockEntityDataId()).copy();
+        final int tagId = placedBlock.block().blockEntityDataId();
+        if (tagId < 0 || tagId >= entry.blockEntities().size()) {
+            session.diagnostics().warn(
+                    BlueprintDiagnosticStage.LOAD_BLOCK_ENTITIES,
+                    BlueprintDiagnosticCategory.INVALID_BLOCK_ENTITY_REFERENCE,
+                    entry.id(),
+                    placedBlock.block().localPos(),
+                    placedBlock.storagePos(),
+                    "block entity tag #" + tagId,
+                    "Ignored invalid block entity data for a blueprint block.",
+                    "Ignored block entity data id " + tagId + " because block entity tag count is " + entry.blockEntities().size() + ".",
+                    null
+            );
+            return;
+        }
+
+        final CompoundTag tag = entry.blockEntities().get(tagId).copy();
         final BlockPos storagePos = placedBlock.storagePos();
         final ServerLevel level = session.level();
-        final LevelChunk chunk = level.getChunk(SectionPos.blockToSectionCoord(storagePos.getX()), SectionPos.blockToSectionCoord(storagePos.getZ()));
+        final String subject = tag.contains("id") ? tag.getString("id") : "block entity tag #" + tagId;
 
         tag.putInt("x", storagePos.getX());
         tag.putInt("y", storagePos.getY());
         tag.putInt("z", storagePos.getZ());
 
-        BlockEntity blockEntity = level.getBlockEntity(storagePos);
-        if (blockEntity == null) {
-            blockEntity = BlockEntity.loadStatic(storagePos, placedBlock.state(), tag, level.registryAccess());
-            if (blockEntity != null) {
-                chunk.setBlockEntity(blockEntity);
+        BlockEntity blockEntity;
+        try {
+            blockEntity = level.getBlockEntity(storagePos);
+            if (blockEntity == null) {
+                final LevelChunk chunk = level.getChunk(SectionPos.blockToSectionCoord(storagePos.getX()), SectionPos.blockToSectionCoord(storagePos.getZ()));
+                blockEntity = BlockEntity.loadStatic(storagePos, placedBlock.state(), tag, level.registryAccess());
+                if (blockEntity != null) {
+                    chunk.setBlockEntity(blockEntity);
+                }
             }
+        } catch (final RuntimeException e) {
+            recordBlockEntityLoadFailure(session, placedBlock, subject, "Failed to create block entity from blueprint data.", e);
+            return;
         }
 
         if (blockEntity == null) {
+            recordBlockEntityLoadFailure(session, placedBlock, subject, "Block entity type was unavailable or did not match the placed block state.", null);
             return;
         }
         session.attachBlockEntity(placedBlock.view(), blockEntity);
@@ -222,23 +330,76 @@ public final class SableBlueprintPlacer {
                 placedBlock.state()
         );
 
-        SableBlueprintMapperRegistry.beforeLoadBlockEntity(context, blockEntity, tag);
-        tag.putInt("x", storagePos.getX());
-        tag.putInt("y", storagePos.getY());
-        tag.putInt("z", storagePos.getZ());
-        blockEntity.loadWithComponents(tag, level.registryAccess());
+        try {
+            SableBlueprintMapperRegistry.beforeLoadBlockEntity(context, blockEntity, tag);
+            tag.putInt("x", storagePos.getX());
+            tag.putInt("y", storagePos.getY());
+            tag.putInt("z", storagePos.getZ());
+            blockEntity.loadWithComponents(tag, level.registryAccess());
+        } catch (final RuntimeException e) {
+            recordBlockEntityLoadFailure(session, placedBlock, subject, "Failed to load block entity NBT.", e);
+            return;
+        }
 
         final BlockEntity loadedBlockEntity = blockEntity;
         final CompoundTag loadedTag = tag.copy();
         session.deferAfterBlockEntities(() -> SableBlueprintMapperRegistry.afterLoadBlockEntity(context, loadedBlockEntity, loadedTag));
     }
 
+    private static void recordBlockEntityLoadFailure(final BlueprintPlaceSession session,
+                                                     final PlacedBlock placedBlock,
+                                                     final String subject,
+                                                     final String debugMessage,
+                                                     @Nullable final RuntimeException e) {
+        session.diagnostics().warn(
+                BlueprintDiagnosticStage.LOAD_BLOCK_ENTITIES,
+                BlueprintDiagnosticCategory.BLOCK_ENTITY_LOAD_FAILED,
+                placedBlock.entry().id(),
+                placedBlock.block().localPos(),
+                placedBlock.storagePos(),
+                subject,
+                "Skipped block entity data that could not be loaded.",
+                debugMessage,
+                e
+        );
+    }
+
     private static void placeEntities(final BlueprintPlaceSession session, final SableBlueprint blueprint) {
         for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
             final ServerSubLevel subLevel = requirePlacedSubLevel(session, entry);
+            if (session.placedBlocks().blocksInSubLevel(entry.id()).isEmpty()) {
+                if (!entry.entities().isEmpty()) {
+                    session.diagnostics().warn(
+                            BlueprintDiagnosticStage.PLACE_ENTITIES,
+                            BlueprintDiagnosticCategory.ENTITY_SKIPPED,
+                            entry.id(),
+                            null,
+                            null,
+                            "empty sub-level",
+                            "Skipped blueprint entities because their sub-level had no placed blocks.",
+                            "Skipped " + entry.entities().size() + " entity/entities because sub-level " + entry.id() + " had no placed blocks.",
+                            null
+                    );
+                }
+                continue;
+            }
 
             for (final SableBlueprint.EntityData data : entry.entities()) {
-                placeEntity(session, entry, subLevel, data);
+                try {
+                    placeEntity(session, entry, subLevel, data);
+                } catch (final RuntimeException e) {
+                    session.diagnostics().warn(
+                            BlueprintDiagnosticStage.PLACE_ENTITIES,
+                            BlueprintDiagnosticCategory.ENTITY_PLACE_FAILED,
+                            entry.id(),
+                            null,
+                            null,
+                            data.tag().getString("id"),
+                            "Skipped a blueprint entity that could not be placed.",
+                            "Failed to place blueprint entity.",
+                            e
+                    );
+                }
             }
         }
     }
@@ -255,6 +416,17 @@ public final class SableBlueprintPlacer {
 
         final EntityType<?> type = EntityType.byString(tag.getString("id")).orElse(null);
         if (type == null) {
+            session.diagnostics().warn(
+                    BlueprintDiagnosticStage.PLACE_ENTITIES,
+                    BlueprintDiagnosticCategory.ENTITY_SKIPPED,
+                    entry.id(),
+                    null,
+                    null,
+                    tag.getString("id"),
+                    "Skipped an unavailable blueprint entity.",
+                    "Skipped entity because entity type '" + tag.getString("id") + "' is unavailable.",
+                    null
+            );
             return;
         }
 
@@ -273,6 +445,17 @@ public final class SableBlueprintPlacer {
 
         final Entity entity = EntityType.create(tag, session.level()).orElse(null);
         if (entity == null) {
+            session.diagnostics().warn(
+                    BlueprintDiagnosticStage.PLACE_ENTITIES,
+                    BlueprintDiagnosticCategory.ENTITY_PLACE_FAILED,
+                    entry.id(),
+                    null,
+                    null,
+                    tag.getString("id"),
+                    "Skipped a blueprint entity that could not be created.",
+                    "EntityType.create returned empty for blueprint entity.",
+                    null
+            );
             return;
         }
 
@@ -309,11 +492,26 @@ public final class SableBlueprintPlacer {
         tag.put("Pos", posTag);
     }
 
-    private static void notifyPlacedBlocks(final ServerLevel level, final List<PlacedBlock> placedBlocks) {
+    private static void notifyPlacedBlocks(final BlueprintPlaceSession session, final List<PlacedBlock> placedBlocks) {
+        final ServerLevel level = session.level();
         for (final PlacedBlock placedBlock : placedBlocks) {
             final BlockPos pos = placedBlock.storagePos();
-            final LevelChunk chunk = level.getChunk(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
-            SubLevelAssemblyHelper.markAndNotifyBlock(level, pos, chunk, placedBlock.oldState(), placedBlock.state(), 3, 512);
+            try {
+                final LevelChunk chunk = level.getChunk(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
+                SubLevelAssemblyHelper.markAndNotifyBlock(level, pos, chunk, placedBlock.oldState(), placedBlock.state(), 3, 512);
+            } catch (final RuntimeException e) {
+                session.diagnostics().warn(
+                        BlueprintDiagnosticStage.WORLD_UPDATES,
+                        BlueprintDiagnosticCategory.WORLD_UPDATE_FAILED,
+                        placedBlock.entry().id(),
+                        placedBlock.block().localPos(),
+                        pos,
+                        placedBlock.state().getBlock().builtInRegistryHolder().key().location().toString(),
+                        "Skipped a blueprint block world update.",
+                        "Failed to notify placed blueprint block.",
+                        e
+                );
+            }
         }
     }
 
@@ -326,6 +524,9 @@ public final class SableBlueprintPlacer {
                                BlockState oldState) {
     }
 
-    public record Result(int placedSubLevels, Map<UUID, UUID> subLevelUuidMap) {
+    public record Result(int placedSubLevels, Map<UUID, UUID> subLevelUuidMap, BlueprintDiagnosticReport diagnostics) {
+        public Result {
+            diagnostics = diagnostics == null ? BlueprintDiagnosticReport.empty() : diagnostics;
+        }
     }
 }

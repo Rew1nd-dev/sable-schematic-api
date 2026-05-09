@@ -123,12 +123,20 @@ public final class SableBlueprintMapperRegistry {
     public static void beforeLoadBlockEntity(final BlueprintBlockPlaceContext context, final BlockEntity blockEntity, final CompoundTag tag) {
         final SableBlueprintBlockMapper blockMapper = get(context.state());
         if (blockMapper != null) {
-            blockMapper.beforeLoadBlockEntity(context, tag);
+            try {
+                blockMapper.beforeLoadBlockEntity(context, tag);
+            } catch (final RuntimeException e) {
+                recordBlockMapperFailure(context, blockMapper, "beforeLoadBlockEntity", e);
+            }
         }
 
         final SableBlueprintBlockMapper blockEntityMapper = get(blockEntity.getType());
         if (blockEntityMapper != null) {
-            blockEntityMapper.beforeLoadBlockEntity(context, tag);
+            try {
+                blockEntityMapper.beforeLoadBlockEntity(context, tag);
+            } catch (final RuntimeException e) {
+                recordBlockMapperFailure(context, blockEntityMapper, "beforeLoadBlockEntity", e);
+            }
         }
     }
 
@@ -142,12 +150,20 @@ public final class SableBlueprintMapperRegistry {
     public static void afterLoadBlockEntity(final BlueprintBlockPlaceContext context, final BlockEntity blockEntity, final CompoundTag loadedTag) {
         final SableBlueprintBlockMapper blockMapper = get(context.state());
         if (blockMapper != null) {
-            blockMapper.afterLoadBlockEntity(context, blockEntity, loadedTag);
+            try {
+                blockMapper.afterLoadBlockEntity(context, blockEntity, loadedTag);
+            } catch (final RuntimeException e) {
+                recordBlockMapperFailure(context, blockMapper, "afterLoadBlockEntity", e);
+            }
         }
 
         final SableBlueprintBlockMapper blockEntityMapper = get(blockEntity.getType());
         if (blockEntityMapper != null) {
-            blockEntityMapper.afterLoadBlockEntity(context, blockEntity, loadedTag);
+            try {
+                blockEntityMapper.afterLoadBlockEntity(context, blockEntity, loadedTag);
+            } catch (final RuntimeException e) {
+                recordBlockMapperFailure(context, blockEntityMapper, "afterLoadBlockEntity", e);
+            }
         }
     }
 
@@ -182,7 +198,12 @@ public final class SableBlueprintMapperRegistry {
                                                           final CompoundTag tag) {
         final SableBlueprintEntityMapper entityMapper = get(type);
         if (entityMapper != null) {
-            return entityMapper.beforeCreateEntity(context, tag);
+            try {
+                return entityMapper.beforeCreateEntity(context, tag);
+            } catch (final RuntimeException e) {
+                recordEntityMapperFailure(context, entityMapper, "beforeCreateEntity", e);
+                return null;
+            }
         }
 
         return tag;
@@ -198,7 +219,47 @@ public final class SableBlueprintMapperRegistry {
     public static void afterCreateEntity(final BlueprintEntityPlaceContext context, final Entity entity, final CompoundTag loadedTag) {
         final SableBlueprintEntityMapper entityMapper = get(entity.getType());
         if (entityMapper != null) {
-            entityMapper.afterCreateEntity(context, entity, loadedTag);
+            try {
+                entityMapper.afterCreateEntity(context, entity, loadedTag);
+            } catch (final RuntimeException e) {
+                recordEntityMapperFailure(context, entityMapper, "afterCreateEntity", e);
+            }
         }
+    }
+
+    private static void recordBlockMapperFailure(final BlueprintBlockPlaceContext context,
+                                                 final Object mapper,
+                                                 final String method,
+                                                 final RuntimeException e) {
+        context.session().diagnostics().warn(
+                context.phase() == BlueprintPlacePhase.AFTER_BLOCK_ENTITIES
+                        ? BlueprintDiagnosticStage.AFTER_BLOCK_ENTITIES
+                        : BlueprintDiagnosticStage.LOAD_BLOCK_ENTITIES,
+                BlueprintDiagnosticCategory.MAPPER_FAILED,
+                context.blueprintSubLevelId(),
+                context.localPos(),
+                context.storagePos(),
+                mapper.getClass().getName(),
+                "Skipped incompatible block entity remap data.",
+                "Blueprint block mapper " + mapper.getClass().getName() + "." + method + " failed.",
+                e
+        );
+    }
+
+    private static void recordEntityMapperFailure(final BlueprintEntityPlaceContext context,
+                                                  final Object mapper,
+                                                  final String method,
+                                                  final RuntimeException e) {
+        context.session().diagnostics().warn(
+                BlueprintDiagnosticStage.PLACE_ENTITIES,
+                BlueprintDiagnosticCategory.MAPPER_FAILED,
+                context.blueprintSubLevelId(),
+                null,
+                null,
+                mapper.getClass().getName(),
+                "Skipped incompatible entity remap data.",
+                "Blueprint entity mapper " + mapper.getClass().getName() + "." + method + " failed.",
+                e
+        );
     }
 }

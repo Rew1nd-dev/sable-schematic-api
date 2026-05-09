@@ -2,6 +2,7 @@ package dev.rew1nd.sableschematicapi.survival;
 
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.BlueprintSummary;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
+import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintDecodeResult;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
@@ -33,12 +34,16 @@ public final class BlueprintPayloads {
     }
 
     public static SableBlueprint readCompressed(final byte[] data) throws IOException {
+        return readCompressedWithDiagnostics(data).blueprint();
+    }
+
+    public static SableBlueprintDecodeResult readCompressedWithDiagnostics(final byte[] data) throws IOException {
         try (final ByteArrayInputStream stream = new ByteArrayInputStream(data)) {
             final CompoundTag tag = NbtIo.readCompressed(stream, NbtAccounter.unlimitedHeap());
             if (tag == null) {
                 throw new IOException("Blueprint payload is empty.");
             }
-            return SableBlueprint.load(tag);
+            return SableBlueprint.loadWithDiagnostics(tag);
         }
     }
 

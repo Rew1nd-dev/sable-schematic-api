@@ -82,7 +82,11 @@ public final class SableBlueprintEventRegistry {
      */
     public static void placeBeforeBlocks(final BlueprintPlaceSession session) {
         for (final SableBlueprintEvent event : EVENTS) {
-            event.onPlaceBeforeBlocks(session, session.globalExtraData().getCompound(event.id().toString()));
+            try {
+                event.onPlaceBeforeBlocks(session, session.globalExtraData().getCompound(event.id().toString()));
+            } catch (final RuntimeException e) {
+                recordPlaceEventFailure(session, event, BlueprintDiagnosticStage.BEFORE_BLOCKS, "onPlaceBeforeBlocks", e);
+            }
         }
     }
 
@@ -93,7 +97,11 @@ public final class SableBlueprintEventRegistry {
      */
     public static void placeAfterBlockEntities(final BlueprintPlaceSession session) {
         for (final SableBlueprintEvent event : EVENTS) {
-            event.onPlaceAfterBlockEntities(session, session.globalExtraData().getCompound(event.id().toString()));
+            try {
+                event.onPlaceAfterBlockEntities(session, session.globalExtraData().getCompound(event.id().toString()));
+            } catch (final RuntimeException e) {
+                recordPlaceEventFailure(session, event, BlueprintDiagnosticStage.AFTER_BLOCK_ENTITIES, "onPlaceAfterBlockEntities", e);
+            }
         }
     }
 
@@ -104,11 +112,33 @@ public final class SableBlueprintEventRegistry {
      */
     public static void placeAfterBlocks(final BlueprintPlaceSession session) {
         for (final SableBlueprintEvent event : EVENTS) {
-            event.onPlaceAfterBlocks(session, session.globalExtraData().getCompound(event.id().toString()));
+            try {
+                event.onPlaceAfterBlocks(session, session.globalExtraData().getCompound(event.id().toString()));
+            } catch (final RuntimeException e) {
+                recordPlaceEventFailure(session, event, BlueprintDiagnosticStage.AFTER_PLACE, "onPlaceAfterBlocks", e);
+            }
         }
     }
 
     private static CompoundTag eventData(final CompoundTag globalExtraData, final ResourceLocation id) {
         return globalExtraData.getCompound(id.toString());
+    }
+
+    private static void recordPlaceEventFailure(final BlueprintPlaceSession session,
+                                                final SableBlueprintEvent event,
+                                                final BlueprintDiagnosticStage stage,
+                                                final String method,
+                                                final RuntimeException e) {
+        session.diagnostics().warn(
+                stage,
+                BlueprintDiagnosticCategory.EVENT_FAILED,
+                null,
+                null,
+                null,
+                event.id().toString(),
+                "Skipped incompatible blueprint sidecar data.",
+                "Blueprint event " + event.id() + "." + method + " failed.",
+                e
+        );
     }
 }

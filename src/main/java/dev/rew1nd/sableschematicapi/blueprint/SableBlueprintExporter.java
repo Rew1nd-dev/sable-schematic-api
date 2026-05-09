@@ -74,16 +74,13 @@ public final class SableBlueprintExporter {
             if (!(subLevel instanceof final ServerSubLevel serverSubLevel)) {
                 continue;
             }
-
             if (!seen.add(serverSubLevel.getUniqueId())) {
                 continue;
             }
-
             final BoundingBox3ic plotBounds = serverSubLevel.getPlot().getBoundingBox();
             if (plotBounds == BoundingBox3i.EMPTY || plotBounds.volume() <= 0) {
                 continue;
             }
-
             session.setPhase(BlueprintSavePhase.BUILD_FRAMES);
             final BoundingBox3i storageBounds = new BoundingBox3i(plotBounds);
             final BlockPos blocksOrigin = new BlockPos(storageBounds.minX(), storageBounds.minY(), storageBounds.minZ());

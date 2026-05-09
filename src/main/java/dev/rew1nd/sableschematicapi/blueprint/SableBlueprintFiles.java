@@ -50,11 +50,18 @@ public final class SableBlueprintFiles {
     }
 
     public static SableBlueprint load(final MinecraftServer server, final String name) throws IOException {
+        return loadWithDiagnostics(server, name).blueprint();
+    }
+
+    public static SableBlueprintDecodeResult loadWithDiagnostics(final MinecraftServer server, final String name) throws IOException {
         final Path path = path(server, name);
 
         try (final InputStream stream = Files.newInputStream(path, StandardOpenOption.READ)) {
             final CompoundTag tag = NbtIo.readCompressed(stream, NbtAccounter.unlimitedHeap());
-            return SableBlueprint.load(tag);
+            if (tag == null) {
+                throw new IOException("Blueprint payload is empty.");
+            }
+            return SableBlueprint.loadWithDiagnostics(tag);
         }
     }
 

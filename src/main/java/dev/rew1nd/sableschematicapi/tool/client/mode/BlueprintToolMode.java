@@ -1,5 +1,7 @@
 package dev.rew1nd.sableschematicapi.tool.client.mode;
 
+import com.lowdragmc.lowdraglib2.gui.texture.IGuiTexture;
+import com.lowdragmc.lowdraglib2.gui.texture.Icons;
 import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolInputContext;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolInputResult;
@@ -11,6 +13,10 @@ public interface BlueprintToolMode {
     ResourceLocation id();
 
     Component label();
+
+    default IGuiTexture icon() {
+        return Icons.FILE;
+    }
 
     UIElement createPage(Player player);
 
