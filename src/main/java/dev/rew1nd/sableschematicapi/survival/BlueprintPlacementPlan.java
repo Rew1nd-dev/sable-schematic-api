@@ -61,10 +61,12 @@ public final class BlueprintPlacementPlan {
             return empty(target);
         }
 
-        final CanonicalLayout layout = canonicalLayout(subLevels);
+        final CanonicalLayout layout = canonicalLayout(blueprint);
         final double y0 = Math.max(1.0, layout.height()) * 0.5;
         target.y = hitPoint.y + y0 + spacing;
-        return anchoredToBasisAabbCenter(subLevels, layout, target);
+        return layout.hasStoredCanonicalBounds()
+                ? anchoredToCanonicalBoundsCenter(subLevels, layout, target)
+                : anchoredToBasisAabbCenter(subLevels, layout, target);
     }
 
     public static BlueprintPlacementPlan forCannon(final SableBlueprint blueprint,
@@ -77,7 +79,7 @@ public final class BlueprintPlacementPlan {
             return empty(origin);
         }
 
-        final CanonicalLayout layout = canonicalLayout(subLevels);
+        final CanonicalLayout layout = canonicalLayout(blueprint);
         final BlueprintBuildProgress.PlacementAnchor anchor = resolveAnchor(progress, layout.basis(), cannonPos, layout.bounds(), padding);
         return anchoredToCanonicalBoundsCenter(subLevels, layout, anchor.targetCenter());
     }
@@ -206,9 +208,27 @@ public final class BlueprintPlacementPlan {
         return (long) Math.max(width, 0) * Math.max(height, 0) * Math.max(depth, 0);
     }
 
-    private static CanonicalLayout canonicalLayout(final List<SableBlueprint.SubLevelData> subLevels) {
+    private static CanonicalLayout canonicalLayout(final SableBlueprint blueprint) {
+        final List<SableBlueprint.SubLevelData> subLevels = blueprint.subLevels();
+        if (blueprint.hasCanonicalBounds()) {
+            final SableBlueprint.SubLevelData basis = selectStoredBasis(subLevels);
+            return new CanonicalLayout(basis, blueprint.canonicalBounds(), center(blueprint.canonicalBounds()), true);
+        }
+
         final SableBlueprint.SubLevelData basis = selectBasis(subLevels);
-        return new CanonicalLayout(basis, canonicalBounds(subLevels, basis), localAabbCenter(basis));
+        return new CanonicalLayout(basis, canonicalBounds(subLevels, basis), localAabbCenter(basis), false);
+    }
+
+    private static SableBlueprint.SubLevelData selectStoredBasis(final List<SableBlueprint.SubLevelData> subLevels) {
+        final Comparator<SableBlueprint.SubLevelData> comparator = Comparator
+                .comparingDouble(BlueprintPlacementPlan::relativePositionLengthSquared)
+                .thenComparing(Comparator.comparingLong(BlueprintPlacementPlan::localVolume).reversed())
+                .thenComparing(Comparator.comparingInt((SableBlueprint.SubLevelData entry) -> entry.blocks().size()).reversed());
+        return subLevels.stream().min(comparator).orElseThrow();
+    }
+
+    private static double relativePositionLengthSquared(final SableBlueprint.SubLevelData entry) {
+        return entry.relativePose().position().lengthSquared();
     }
 
     private static BoundingBox3d canonicalBounds(final List<SableBlueprint.SubLevelData> subLevels,
@@ -275,7 +295,8 @@ public final class BlueprintPlacementPlan {
 
     private record CanonicalLayout(SableBlueprint.SubLevelData basis,
                                    BoundingBox3d bounds,
-                                   Vector3d basisAabbCenter) {
+                                   Vector3d basisAabbCenter,
+                                   boolean hasStoredCanonicalBounds) {
         private CanonicalLayout {
             bounds = new BoundingBox3d(bounds);
             basisAabbCenter = new Vector3d(basisAabbCenter);
