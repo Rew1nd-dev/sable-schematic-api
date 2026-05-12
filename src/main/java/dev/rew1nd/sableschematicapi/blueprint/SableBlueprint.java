@@ -31,7 +31,8 @@ public class SableBlueprint {
     public static final int VERSION = 1;
 
     private final Vector3d origin;
-    private final BoundingBox3d rootBounds;
+    private final BoundingBox3d bounds;
+    private final boolean hasCanonicalBounds;
     private final List<SubLevelData> subLevels;
     private final CompoundTag globalExtraData;
     @Nullable
@@ -41,7 +42,7 @@ public class SableBlueprint {
                           final BoundingBox3d rootBounds,
                           final List<SubLevelData> subLevels,
                           final CompoundTag globalExtraData) {
-        this(origin, rootBounds, subLevels, globalExtraData, null);
+        this(origin, rootBounds, false, subLevels, globalExtraData, null);
     }
 
     public SableBlueprint(final Vector3dc origin,
@@ -49,8 +50,25 @@ public class SableBlueprint {
                           final List<SubLevelData> subLevels,
                           final CompoundTag globalExtraData,
                           @Nullable final SableBlueprintPreview preview) {
+        this(origin, rootBounds, false, subLevels, globalExtraData, preview);
+    }
+
+    static SableBlueprint withCanonicalBounds(final Vector3dc origin,
+                                              final BoundingBox3d canonicalBounds,
+                                              final List<SubLevelData> subLevels,
+                                              final CompoundTag globalExtraData) {
+        return new SableBlueprint(origin, canonicalBounds, true, subLevels, globalExtraData, null);
+    }
+
+    private SableBlueprint(final Vector3dc origin,
+                           final BoundingBox3d bounds,
+                           final boolean hasCanonicalBounds,
+                           final List<SubLevelData> subLevels,
+                           final CompoundTag globalExtraData,
+                           @Nullable final SableBlueprintPreview preview) {
         this.origin = new Vector3d(origin);
-        this.rootBounds = new BoundingBox3d(rootBounds);
+        this.bounds = new BoundingBox3d(bounds);
+        this.hasCanonicalBounds = hasCanonicalBounds;
         this.subLevels = List.copyOf(subLevels);
         this.globalExtraData = globalExtraData.copy();
         this.preview = preview;
@@ -60,8 +78,17 @@ public class SableBlueprint {
         return this.origin;
     }
 
+    @Deprecated
     public BoundingBox3d rootBounds() {
-        return new BoundingBox3d(this.rootBounds);
+        return new BoundingBox3d(this.bounds);
+    }
+
+    public boolean hasCanonicalBounds() {
+        return this.hasCanonicalBounds;
+    }
+
+    public BoundingBox3d canonicalBounds() {
+        return new BoundingBox3d(this.bounds);
     }
 
     public List<SubLevelData> subLevels() {
@@ -98,7 +125,11 @@ public class SableBlueprint {
 
         tag.putInt("version", VERSION);
         tag.put("origin", SableNBTUtils.writeVector3d(this.origin));
-        tag.put("root_bounds", SableNBTUtils.writeBoundingBox(this.rootBounds));
+        if (this.hasCanonicalBounds) {
+            tag.put("canonical_bound", SableNBTUtils.writeBoundingBox(this.bounds));
+        } else {
+            tag.put("root_bounds", SableNBTUtils.writeBoundingBox(this.bounds));
+        }
         tag.put("global_extra_data", this.globalExtraData.copy());
         if (this.preview != null) {
             tag.put("preview", this.preview.save());
@@ -124,7 +155,8 @@ public class SableBlueprint {
         }
 
         final Vector3d origin = SableNBTUtils.readVector3d(tag.getCompound("origin"));
-        final BoundingBox3d rootBounds = SableNBTUtils.readBoundingBox(tag.getCompound("root_bounds"));
+        final boolean hasCanonicalBounds = tag.contains("canonical_bound", Tag.TAG_COMPOUND);
+        final BoundingBox3d bounds = SableNBTUtils.readBoundingBox(tag.getCompound(hasCanonicalBounds ? "canonical_bound" : "root_bounds"));
         final CompoundTag globalExtraData = tag.getCompound("global_extra_data");
         SableBlueprintPreview preview = null;
         if (tag.contains("preview", Tag.TAG_COMPOUND)) {
@@ -170,7 +202,7 @@ public class SableBlueprint {
         }
 
         return new SableBlueprintDecodeResult(
-                new SableBlueprint(origin, rootBounds, subLevels, globalExtraData, preview),
+                new SableBlueprint(origin, bounds, hasCanonicalBounds, subLevels, globalExtraData, preview),
                 diagnostics.build()
         );
     }
