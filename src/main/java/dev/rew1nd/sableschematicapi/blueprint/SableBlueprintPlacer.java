@@ -153,6 +153,19 @@ public final class SableBlueprintPlacer {
         SableBlueprintEventRegistry.placeAfterBlocks(session);
 
         session.setPhase(BlueprintPlacePhase.FINALIZE);
+
+        int placed = finalizePlacement(blueprint, session, container, placedBlocks, placementPlan);
+
+        return new Result(placed, session.subLevelUuidMap(), session.diagnosticReport());
+    }
+
+    private static int finalizePlacement(final SableBlueprint blueprint,
+                                         final BlueprintPlaceSession session,
+                                         final ServerSubLevelContainer container,
+                                         final List<PlacedBlock> placedBlocks,
+                                         final BlueprintPlacementPlan placementPlan
+    ){
+        SubLevelPhysicsSystem physicsSystem = container.physicsSystem();
         int placed = 0;
         for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
             final ServerSubLevel subLevel = requirePlacedSubLevel(session, entry);
@@ -161,15 +174,15 @@ public final class SableBlueprintPlacer {
                 if (!hasPlacedBlocks(entry, placedBlocks)) {
                     container.removeSubLevel(subLevel, SubLevelRemovalReason.REMOVED);
                     session.diagnostics().warn(
-                            BlueprintDiagnosticStage.FINALIZE,
-                            BlueprintDiagnosticCategory.SKIPPED_BLOCK,
-                            entry.id(),
-                            null,
-                            null,
-                            "empty sub-level",
-                            "Skipped an empty blueprint sub-level.",
-                            "Removed placed sub-level " + entry.id() + " because no blocks were placed.",
-                            null
+                        BlueprintDiagnosticStage.FINALIZE,
+                        BlueprintDiagnosticCategory.SKIPPED_BLOCK,
+                        entry.id(),
+                        null,
+                        null,
+                        "empty sub-level",
+                        "Skipped an empty blueprint sub-level.",
+                        "Removed placed sub-level " + entry.id() + " because no blocks were placed.",
+                        null
                     );
                     continue;
                 }
@@ -186,9 +199,9 @@ public final class SableBlueprintPlacer {
             subLevel.updateLastPose();
             placed++;
         }
-
-        return new Result(placed, session.subLevelUuidMap(), session.diagnosticReport());
+        return placed;
     }
+
 
     private static boolean hasPlacedBlocks(final SableBlueprint.SubLevelData entry, final List<PlacedBlock> placedBlocks) {
         for (final PlacedBlock placedBlock : placedBlocks) {

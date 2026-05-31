@@ -7,6 +7,7 @@ import dev.rew1nd.sableschematicapi.compat.copycats.CopycatsBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.create.CreateBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.drivebywire.DriveByWireBlueprintCompat;
 import dev.rew1nd.sableschematicapi.compat.simulated.SimulatedBlueprintCompat;
+import dev.rew1nd.sableschematicapi.compat.universalJoint.UniversalJointCompat;
 import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlockEntities;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlocks;
@@ -62,6 +63,10 @@ public final class SableSchematicApi {
 
             if (ModList.get().isLoaded("drivebywire")) {
                 DriveByWireBlueprintCompat.register();
+            }
+
+            if (ModList.get().isLoaded("aeronautics_utility_objects")) {
+                UniversalJointCompat.register();
             }
         });
     }

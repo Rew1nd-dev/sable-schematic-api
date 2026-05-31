@@ -2,7 +2,7 @@
 
 Thank you for helping improve Sable Schematic API.
 
-By submitting a pull request, you confirm that the contribution is your own original work, that you have the right to contribute it, and that it may be licensed as part of this project under the [PolyForm Shield License 1.0.0](LICENSE.md).
+By submitting a pull request, you confirm that the contribution is your own original work, that you have the right to contribute it, and that it may be licensed as part of this project under the [MIT License](LICENSE.md).
 
 This project exists as an external Sable blueprint API experiment. Contributions to the API, blueprint format, exporter, placer, mapper lifecycle, or compatibility layer may later be adapted or proposed upstream to Sable under Sable's contribution and licensing expectations.
 
@@ -21,4 +21,3 @@ Before opening a pull request, run:
 ./gradlew.bat javadoc
 ./gradlew.bat build
 ```
-

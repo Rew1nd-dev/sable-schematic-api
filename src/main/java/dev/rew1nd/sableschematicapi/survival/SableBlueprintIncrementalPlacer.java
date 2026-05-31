@@ -66,6 +66,7 @@ import org.joml.Vector3dc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Incremental survival placer for Sable blueprints.
@@ -121,33 +122,30 @@ public final class SableBlueprintIncrementalPlacer {
                 final List<Component> warnings = new ArrayList<>();
 
                 final BlueprintPlaceSession session = new BlueprintPlaceSession(
-                        level, placementPlan.origin(), blueprint.globalExtraData());
-                final BlueprintPostProcessAdmissionContext admissionCtx =
-                        new BlueprintPostProcessAdmissionContext(session, blueprint, level);
-                final BlueprintPostProcessCostContext costCtx =
-                        new BlueprintPostProcessCostContext(session, blueprint, level);
+                    level,
+                    placementPlan.origin(),
+                    blueprint.globalExtraData()
+                );
+                final BlueprintPostProcessAdmissionContext admissionCtx = new BlueprintPostProcessAdmissionContext(session, blueprint, level);
+                final BlueprintPostProcessCostContext costCtx = new BlueprintPostProcessCostContext(session, blueprint, level);
 
-                for (final ResourceLocation sidecarId :
-                        BlueprintPostProcessRegistry.registeredSidecarIds()) {
-                    final BlueprintPostProcessOperationParser parser =
-                            BlueprintPostProcessRegistry.parser(sidecarId);
+                for (
+                    final ResourceLocation sidecarId : BlueprintPostProcessRegistry.registeredSidecarIds()
+                ) {
+                    final BlueprintPostProcessOperationParser parser = BlueprintPostProcessRegistry.parser(sidecarId);
                     if (parser == null) {
                         continue;
                     }
 
-                    final CompoundTag sidecarData =
-                            blueprint.globalExtraData().getCompound(sidecarId.toString());
-                    final  List<? extends BlueprintPostProcessOperation> parsed =
-                            parser.parse(session, sidecarData, blueprint);
+                    final CompoundTag sidecarData = blueprint.globalExtraData().getCompound(sidecarId.toString());
+                    final List<? extends BlueprintPostProcessOperation> parsed = parser.parse(session, sidecarData, blueprint);
 
                     for (final BlueprintPostProcessOperation op : parsed) {
                         if (progress.isOperationApplied(op.stableKey())) {
                             continue;
                         }
 
-                        @SuppressWarnings("unchecked")
-                        final BlueprintPostProcessMapper<BlueprintPostProcessOperation> mapper =
-                                BlueprintPostProcessRegistry.mapper(op.type());
+                        final BlueprintPostProcessMapper<BlueprintPostProcessOperation> mapper = BlueprintPostProcessRegistry.mapper(op.type());
                         if (mapper != null) {
                             final AdmissionResult admission = mapper.admit(op, admissionCtx);
                             if (!admission.admitted()) {
@@ -158,9 +156,7 @@ public final class SableBlueprintIncrementalPlacer {
                             }
                         }
 
-                        @SuppressWarnings("unchecked")
-                        final BlueprintPostProcessCostStrategy<BlueprintPostProcessOperation> costStrategy =
-                                BlueprintPostProcessRegistry.cost(op.type());
+                        final BlueprintPostProcessCostStrategy<BlueprintPostProcessOperation> costStrategy = BlueprintPostProcessRegistry.cost(op.type());
                         if (costStrategy != null) {
                             commitQuote = commitQuote.merge(costStrategy.quote(op, costCtx));
                         }
@@ -469,7 +465,7 @@ public final class SableBlueprintIncrementalPlacer {
         final SubLevelPhysicsSystem physicsSystem = container.physicsSystem();
         final List<PlacedBlock> placedBlocks = new ObjectArrayList<>();
 
-        for (final Map.Entry<java.util.UUID, java.util.UUID> entry : progress.allocatedUuidMap().entrySet()) {
+        for (final Map.Entry<UUID, UUID> entry : progress.allocatedUuidMap().entrySet()) {
             session.mapAllocatedUuid(entry.getKey(), entry.getValue());
         }
 
@@ -544,9 +540,7 @@ public final class SableBlueprintIncrementalPlacer {
                 continue;
             }
 
-            @SuppressWarnings("unchecked")
-            final BlueprintPostProcessMapper<BlueprintPostProcessOperation> mapper =
-                    BlueprintPostProcessRegistry.mapper(op.type());
+            final BlueprintPostProcessMapper<BlueprintPostProcessOperation> mapper = BlueprintPostProcessRegistry.mapper(op.type());
             if (mapper != null) {
                 mapper.apply(op, applyCtx);
             }
@@ -582,7 +576,7 @@ public final class SableBlueprintIncrementalPlacer {
             placed++;
         }
 
-        for (final Map.Entry<java.util.UUID, java.util.UUID> entry : session.allocatedUuidMap().entrySet()) {
+        for (final Map.Entry<UUID, UUID> entry : session.allocatedUuidMap().entrySet()) {
             progress.recordAllocatedUuid(entry.getKey(), entry.getValue());
         }
     }
