@@ -84,6 +84,17 @@ public final class BlueprintPlacementPlan {
         return anchoredToCanonicalBoundsCenter(subLevels, layout, anchor.targetCenter());
     }
 
+    public static BlueprintPlacementPlan forPose(final SableBlueprint blueprint, final Pose3d basisPose) {
+        final Pose3d placementBasisPose = placementPose(basisPose);
+        final List<SableBlueprint.SubLevelData> subLevels = blueprint.subLevels();
+        if (subLevels.isEmpty()) {
+            return empty(placementBasisPose.position());
+        }
+
+        final CanonicalLayout layout = canonicalLayout(blueprint);
+        return withBasisPose(subLevels, layout, placementBasisPose);
+    }
+
     private static BlueprintPlacementPlan empty(final Vector3dc origin) {
         return new BlueprintPlacementPlan(
                 NO_BASIS,
@@ -112,11 +123,27 @@ public final class BlueprintPlacementPlan {
                                                      final Vector3dc offset) {
         final Map<Integer, Pose3d> poses = new LinkedHashMap<>();
         for (final SableBlueprint.SubLevelData entry : subLevels) {
-            poses.put(entry.id(), cannonPose(entry, layout.basis(), offset));
+            poses.put(entry.id(), offsetPose(entry, layout.basis(), offset));
         }
 
         final BoundingBox3d worldBounds = new BoundingBox3d(layout.bounds()).move(offset.x(), offset.y(), offset.z());
         return new BlueprintPlacementPlan(layout.basis().id(), offset, worldBounds, poses);
+    }
+
+    private static BlueprintPlacementPlan withBasisPose(final List<SableBlueprint.SubLevelData> subLevels,
+                                                        final CanonicalLayout layout,
+                                                        final Pose3d basisPose) {
+        final Map<Integer, Pose3d> poses = new LinkedHashMap<>();
+        for (final SableBlueprint.SubLevelData entry : subLevels) {
+            poses.put(entry.id(), worldPose(entry, layout.basis(), basisPose));
+        }
+
+        return new BlueprintPlacementPlan(
+                layout.basis().id(),
+                basisPose.position(),
+                transformedBounds(layout.bounds(), basisPose),
+                poses
+        );
     }
 
     public int basisSubLevelId() {
@@ -165,19 +192,52 @@ public final class BlueprintPlacementPlan {
         return anchor;
     }
 
-    private static Pose3d cannonPose(final SableBlueprint.SubLevelData entry,
+    private static Pose3d offsetPose(final SableBlueprint.SubLevelData entry,
                                      final SableBlueprint.SubLevelData basis,
                                      final Vector3dc offset) {
+        final Pose3d pose = relativePoseInBasis(entry, basis);
+        pose.position().add(offset);
+        return pose;
+    }
+
+    private static Pose3d worldPose(final SableBlueprint.SubLevelData entry,
+                                    final SableBlueprint.SubLevelData basis,
+                                    final Pose3d basisPose) {
+        final Pose3d relativePose = relativePoseInBasis(entry, basis);
+        final Vector3d position = new Vector3d(relativePose.position());
+        basisPose.transformPosition(position);
+
+        final Quaterniond orientation = new Quaterniond(basisPose.orientation())
+                .mul(relativePose.orientation());
+
+        return new Pose3d(position, orientation, new Vector3d(), multiplyScale(basisPose.scale(), relativePose.scale()));
+    }
+
+    private static Pose3d relativePoseInBasis(final SableBlueprint.SubLevelData entry,
+                                              final SableBlueprint.SubLevelData basis) {
         final Vector3d position = new Vector3d();
         entry.relativePose().transformPosition(position);
         basis.relativePose().transformPositionInverse(position);
-        position.add(offset);
 
         final Quaterniond orientation = new Quaterniond(basis.relativePose().orientation())
                 .invert()
                 .mul(entry.relativePose().orientation());
 
         return new Pose3d(position, orientation, new Vector3d(), relativeScale(entry.relativePose().scale(), basis.relativePose().scale()));
+    }
+
+    private static Pose3d placementPose(final Pose3d pose) {
+        final Pose3d placementPose = new Pose3d(pose);
+        placementPose.rotationPoint().set(0.0, 0.0, 0.0);
+        return placementPose;
+    }
+
+    private static Vector3d multiplyScale(final Vector3dc basisScale, final Vector3dc relativeScale) {
+        return new Vector3d(
+                basisScale.x() * relativeScale.x(),
+                basisScale.y() * relativeScale.y(),
+                basisScale.z() * relativeScale.z()
+        );
     }
 
     private static Vector3d relativeScale(final Vector3dc entryScale, final Vector3dc basisScale) {
@@ -291,6 +351,23 @@ public final class BlueprintPlacementPlan {
                 (bounds.minY() + bounds.maxY()) * 0.5,
                 (bounds.minZ() + bounds.maxZ()) * 0.5
         );
+    }
+
+    private static BoundingBox3d transformedBounds(final BoundingBox3d bounds, final Pose3d pose) {
+        final BoundsBuilder builder = new BoundsBuilder();
+        final double[] xs = new double[]{bounds.minX(), bounds.maxX()};
+        final double[] ys = new double[]{bounds.minY(), bounds.maxY()};
+        final double[] zs = new double[]{bounds.minZ(), bounds.maxZ()};
+        for (final double x : xs) {
+            for (final double y : ys) {
+                for (final double z : zs) {
+                    final Vector3d point = new Vector3d(x, y, z);
+                    pose.transformPosition(point);
+                    builder.include(point);
+                }
+            }
+        }
+        return builder.build();
     }
 
     private record CanonicalLayout(SableBlueprint.SubLevelData basis,

@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.rew1nd.sableschematicapi.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "VanillaChunkedSubLevelRenderDataMixin",
+    "VanillaSubLevelRenderDispatcherMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

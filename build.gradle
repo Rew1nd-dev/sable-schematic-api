@@ -17,21 +17,19 @@ tasks.named('wrapper', Wrapper).configure {
 version = mod_version
 group = mod_group_id
 
-def createAeronauticsBundledJar = file("libs/create-aeronautics-${project.create_aeronautics_version}.jar")
-def copycatsJar = file("libs/copycats.jar")
-def driveByWireJar = file("libs/drivebywire-${project.drivebywire_version}.jar")
+def libsDir = layout.projectDirectory.dir("libs")
+def localLibJars = fileTree(libsDir.asFile) {
+    include "*.jar"
+}
+def createAeronauticsBundledJar = libsDir.file("create-aeronautics-${project.create_aeronautics_version}.jar").asFile
 def extractedCreateAeronauticsDir = layout.buildDirectory.dir("compat/create-aeronautics-${project.create_aeronautics_version}")
 def extractCreateAeronauticsModules = tasks.register("extractCreateAeronauticsModules", Copy) {
     group = "compatibility"
     description = "Extracts Simulated/Aeronautics/Offroad module jars from the Create Aeronautics bundled jar."
 
-    doFirst {
-        if (!createAeronauticsBundledJar.isFile()) {
-            throw new GradleException("Missing Simulated Project bundled jar: ${createAeronauticsBundledJar}. Copy create-aeronautics-${project.create_aeronautics_version}.jar into this project's libs directory.")
-        }
-    }
-
-    from(zipTree(createAeronauticsBundledJar)) {
+    from({
+        createAeronauticsBundledJar.isFile() ? zipTree(createAeronauticsBundledJar) : []
+    }) {
         include "META-INF/jarjar/*.jar"
         eachFile { details ->
             details.path = details.name
@@ -42,6 +40,9 @@ def extractCreateAeronauticsModules = tasks.register("extractCreateAeronauticsMo
 }
 
 def createAeronauticsModuleJars = files({
+    if (!createAeronauticsBundledJar.isFile()) {
+        return []
+    }
     fileTree(extractedCreateAeronauticsDir.get().asFile) {
         include "*.jar"
     }.files
@@ -139,6 +140,10 @@ base {
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
+java {
+    withSourcesJar()
+}
+
 neoForge {
     // Specify the version of NeoForge to use.
     version = project.neo_version
@@ -219,14 +224,7 @@ configurations {
 }
 
 dependencies {
-    if (!copycatsJar.isFile()) {
-        throw new GradleException("Missing Copycats compatibility jar: ${copycatsJar}. Copy copycats.jar into this project's libs directory.")
-    }
-    if (!driveByWireJar.isFile()) {
-        throw new GradleException("Missing Drive By Wire compatibility jar: ${driveByWireJar}. Copy drivebywire-${project.drivebywire_version}.jar into this project's libs directory.")
-    }
-
-    compileOnlyApi("dev.ryanhcode.sable:sable-common-${project.minecraft_version}:${project.sable_version}")
+    compileOnlyApi("dev.ryanhcode.sable:sable-neoforge-${project.minecraft_version}:${project.sable_version}")
 
     // Loads Sable itself in NeoForge dev runs without leaking it as a published transitive dependency.
     localRuntime("dev.ryanhcode.sable:sable-neoforge-${project.minecraft_version}:${project.sable_version}")
@@ -252,11 +250,9 @@ dependencies {
     compileOnly createAeronauticsModuleJars
     localRuntime createAeronauticsModuleJars
 
-    compileOnly files(copycatsJar)
-    localRuntime files(copycatsJar)
-
-    compileOnly files(driveByWireJar)
-    localRuntime files(driveByWireJar)
+    // Any jar copied into libs/ is available for compilation and local dev runs after a Gradle sync.
+    compileOnly localLibJars
+    localRuntime localLibJars
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -293,6 +289,9 @@ neoForge.ideSyncTask generateModMetadata
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
+            groupId = project.mod_group_id
+            artifactId = project.archive_name
+            version = project.mod_version
             from components.java
         }
     }
