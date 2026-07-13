@@ -13,6 +13,7 @@ import dev.rew1nd.sableschematicapi.sublevel.SubLevelGroupService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelManagementService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelOperationResult;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelRecord;
+import dev.rew1nd.sableschematicapi.sublevel.SubLevelStorageFlushService;
 import dev.rew1nd.sableschematicapi.survival.BlueprintTableUploadHandler;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
@@ -180,6 +181,10 @@ public final class BlueprintToolServerActions {
             return;
         }
 
+        final SubLevelOperationResult result = SubLevelStorageFlushService.flush(player.getServer());
+        if (!result.success()) {
+            sendResult(player, result);
+        }
         sendSubLevelList(player);
     }
 

@@ -9,6 +9,8 @@ build/
 doc/
 libs/*.jar
 !libs/.gitkeep
+compileOnlyLibs/*.jar
+!compileOnlyLibs/.gitkeep
 
 ### IntelliJ IDEA ###
 .idea/

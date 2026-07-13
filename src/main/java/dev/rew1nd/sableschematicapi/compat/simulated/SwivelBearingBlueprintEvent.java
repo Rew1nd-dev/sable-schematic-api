@@ -7,8 +7,10 @@ import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintSaveSession;
 import dev.rew1nd.sableschematicapi.api.blueprint.SableBlueprintEvent;
 import dev.rew1nd.sableschematicapi.api.blueprint.SubLevelSaveFrame;
 import dev.rew1nd.sableschematicapi.compat.BlueprintRefTags;
+import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
 import dev.simulated_team.simulated.content.blocks.swivel_bearing.SwivelBearingBlockEntity;
 import dev.simulated_team.simulated.content.blocks.swivel_bearing.link_block.SwivelBearingPlateBlockEntity;
@@ -136,14 +138,14 @@ final class SwivelBearingBlueprintEvent implements SableBlueprintEvent {
             return;
         }
 
-        final SubLevelContainer container = SubLevelContainer.getContainer(level);
+        final ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             return;
         }
 
-        final SubLevel attached = container.getSubLevel(bearing.getSubLevelID());
-        if (attached != null) {
-            bearing.reattachConstraint(attached, true);
+        final ServerSubLevel attached = (ServerSubLevel) container.getSubLevel(bearing.getSubLevelID());
+        if (attached instanceof final ServerSubLevel serverAttached) {
+            bearing.reattachConstraint(serverAttached, true);
         }
     }
 }

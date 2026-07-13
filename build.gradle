@@ -21,6 +21,10 @@ def libsDir = layout.projectDirectory.dir("libs")
 def localLibJars = fileTree(libsDir.asFile) {
     include "*.jar"
 }
+def compileOnlyLibsDir = layout.projectDirectory.dir("compileOnlyLibs")
+def compileOnlyLibJars = fileTree(compileOnlyLibsDir.asFile) {
+    include "*.jar"
+}
 def createAeronauticsBundledJar = libsDir.file("create-aeronautics-${project.create_aeronautics_version}.jar").asFile
 def extractedCreateAeronauticsDir = layout.buildDirectory.dir("compat/create-aeronautics-${project.create_aeronautics_version}")
 def extractCreateAeronauticsModules = tasks.register("extractCreateAeronauticsModules", Copy) {
@@ -253,6 +257,9 @@ dependencies {
     // Any jar copied into libs/ is available for compilation and local dev runs after a Gradle sync.
     compileOnly localLibJars
     localRuntime localLibJars
+
+    // Jars copied into compileOnlyLibs/ are visible to compilation only and are not loaded by runClient.
+    compileOnly compileOnlyLibJars
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
