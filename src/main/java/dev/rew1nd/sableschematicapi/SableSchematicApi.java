@@ -12,6 +12,7 @@ import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlockEntities;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlocks;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
+import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelDirectoryRemovalService;
 import dev.rew1nd.sableschematicapi.sublevel.RuntimeSubLevelStaticService;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiCreativeTabs;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
@@ -37,6 +38,8 @@ public final class SableSchematicApi {
         SableSchematicApiPackets.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(SableBlueprintCommands::register);
         NeoForge.EVENT_BUS.addListener(PendingSubLevelLoadTeleportService::tick);
+        NeoForge.EVENT_BUS.addListener(PendingSubLevelDirectoryRemovalService::tick);
+        NeoForge.EVENT_BUS.addListener(PendingSubLevelDirectoryRemovalService::onServerStopped);
         NeoForge.EVENT_BUS.addListener(RuntimeSubLevelStaticService::onServerStopped);
         modEventBus.addListener(this::commonSetup);
     }

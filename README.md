@@ -80,6 +80,14 @@ libs/drivebywire-0.2.7.jar
 
 These jars are only used for local compilation and development runs of optional compatibility code. They are not part of this project's source code and should not be bundled into this project's release jar.
 
+If a compatibility jar is needed only for compilation and currently breaks local `runClient`, place it under `compileOnlyLibs/` instead:
+
+```text
+compileOnlyLibs/<mod-name>.jar
+```
+
+Jars in `compileOnlyLibs/` are added to `compileOnly` only. They are not added to `localRuntime` and will not be loaded by local NeoForge runs.
+
 Build:
 
 ```powershell

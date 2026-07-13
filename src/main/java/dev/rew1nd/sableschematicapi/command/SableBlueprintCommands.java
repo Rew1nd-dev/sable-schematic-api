@@ -16,9 +16,11 @@ import dev.rew1nd.sableschematicapi.survival.BlueprintPayloads;
 import dev.rew1nd.sableschematicapi.survival.BlueprintServerFiles;
 import dev.rew1nd.sableschematicapi.sublevel.LoadedSubLevelTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
+import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelDirectoryRemovalService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelDirectoryService;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelOperationResult;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelRecord;
+import dev.rew1nd.sableschematicapi.sublevel.SubLevelStorageFlushService;
 import net.minecraft.Util;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -114,6 +116,10 @@ public final class SableBlueprintCommands {
                 .then(Commands.literal("sublevels")
                         .then(Commands.literal("list")
                                 .executes(SableBlueprintCommands::listSubLevels))
+                        .then(Commands.literal("flush")
+                                .executes(SableBlueprintCommands::flushSubLevelStorage))
+                        .then(Commands.literal("remove_all")
+                                .executes(SableBlueprintCommands::removeAllSubLevels))
                         .then(Commands.literal("tp_player")
                                 .then(Commands.argument("uuid", UuidArgument.uuid())
                                         .suggests(SUGGEST_SUB_LEVELS)
@@ -212,6 +218,21 @@ public final class SableBlueprintCommands {
             source.sendSuccess(() -> describeSubLevel(record), false);
         }
         return records.size();
+    }
+
+    private static int flushSubLevelStorage(final CommandContext<CommandSourceStack> ctx) {
+        final SubLevelOperationResult result = SubLevelStorageFlushService.flush(ctx.getSource().getServer());
+        sendResult(ctx.getSource(), result);
+        return result.affectedSubLevels();
+    }
+
+    private static int removeAllSubLevels(final CommandContext<CommandSourceStack> ctx) {
+        final SubLevelOperationResult result = PendingSubLevelDirectoryRemovalService.requestRemoval(
+                ctx.getSource().getServer(),
+                ctx.getSource()
+        );
+        sendResult(ctx.getSource(), result);
+        return result.affectedSubLevels();
     }
 
     private static int teleportPlayerToSubLevel(final CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
