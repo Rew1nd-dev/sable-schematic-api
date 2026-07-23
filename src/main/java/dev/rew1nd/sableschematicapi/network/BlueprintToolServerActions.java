@@ -15,6 +15,9 @@ import dev.rew1nd.sableschematicapi.sublevel.SubLevelOperationResult;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelRecord;
 import dev.rew1nd.sableschematicapi.sublevel.SubLevelStorageFlushService;
 import dev.rew1nd.sableschematicapi.survival.BlueprintTableUploadHandler;
+import dev.rew1nd.sableschematicapi.survival.camera.CameraCaptureService;
+import dev.rew1nd.sableschematicapi.survival.camera.CameraState;
+import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
@@ -49,6 +52,14 @@ public final class BlueprintToolServerActions {
     public static final ResourceLocation SUBLEVEL_TOGGLE_STATIC = SableSchematicApi.id("blueprint_tool/sublevel_toggle_static");
     public static final ResourceLocation SUBLEVEL_RENAME = SableSchematicApi.id("blueprint_tool/sublevel_rename");
     public static final ResourceLocation BLUEPRINT_TABLE_UPLOAD = SableSchematicApi.id("blueprint_table/upload");
+    public static final ResourceLocation CAMERA_CAPTURE = SableSchematicApi.id("camera/capture");
+    public static final ResourceLocation CAMERA_DOWNLOAD = SableSchematicApi.id("camera/download");
+    public static final ResourceLocation CAMERA_SAVE_COMPLETE = SableSchematicApi.id("camera/save_complete");
+    public static final ResourceLocation CAMERA_SELECT_LOCAL = SableSchematicApi.id("camera/select_local");
+    public static final ResourceLocation CAMERA_PLACE_CACHED = SableSchematicApi.id("camera/place_cached");
+    public static final ResourceLocation CAMERA_PLACE_LOCAL = SableSchematicApi.id("camera/place_local");
+    public static final ResourceLocation CAMERA_SET_FOV = SableSchematicApi.id("camera/set_fov");
+    public static final ResourceLocation CAMERA_SET_PREVIEW_VIEW = SableSchematicApi.id("camera/set_preview_view");
 
     private static final int MAX_NAME_LENGTH = 128;
     private static final double MAX_DELETE_DISTANCE = 96.0;
@@ -73,6 +84,14 @@ public final class BlueprintToolServerActions {
         register(SUBLEVEL_TOGGLE_STATIC, BlueprintToolServerActions::handleToggleSubLevelStatic);
         register(SUBLEVEL_RENAME, BlueprintToolServerActions::handleRenameSubLevel);
         register(BLUEPRINT_TABLE_UPLOAD, BlueprintToolServerActions::handleBlueprintTableUpload);
+        register(CAMERA_CAPTURE, BlueprintToolServerActions::handleCameraCapture);
+        register(CAMERA_DOWNLOAD, BlueprintToolServerActions::handleCameraDownload);
+        register(CAMERA_SAVE_COMPLETE, BlueprintToolServerActions::handleCameraSaveComplete);
+        register(CAMERA_SELECT_LOCAL, BlueprintToolServerActions::handleCameraSelectLocal);
+        register(CAMERA_PLACE_CACHED, BlueprintToolServerActions::handleCameraPlaceCached);
+        register(CAMERA_PLACE_LOCAL, BlueprintToolServerActions::handleCameraPlaceLocal);
+        register(CAMERA_SET_FOV, BlueprintToolServerActions::handleCameraSetFov);
+        register(CAMERA_SET_PREVIEW_VIEW, BlueprintToolServerActions::handleCameraSetPreviewView);
     }
 
     public static void register(final ResourceLocation id, final BlueprintToolServerAction action) {
@@ -372,5 +391,129 @@ public final class BlueprintToolServerActions {
         } else {
             SableSchematicApiPackets.notify(player, Component.translatable("sable_schematic_api.blueprint_table.ui.upload_failed"), ChatFormatting.RED);
         }
+    }
+
+    private static void handleCameraCapture(final ServerPlayer player, final CompoundTag data) {
+        if (!holdingCameraMainHand(player)) {
+            return;
+        }
+        final CameraCaptureService.Result result = CameraCaptureService.capture(player, data.getInt("fov"));
+        if (result.success()) {
+            final CameraState state = CameraState.read(player.getMainHandItem())
+                    .withCapture(result.captureId(), player.getUUID());
+            CameraState.write(player.getMainHandItem(), state);
+            player.getInventory().setChanged();
+        }
+        SableSchematicApiPackets.sendCameraResult(
+                player, "capture", result.success(), result.reason(), "", result.captureId(), result.bodyIds().size(), result.bodyIds(), new byte[0]
+        );
+    }
+
+    private static void handleCameraDownload(final ServerPlayer player, final CompoundTag data) {
+        if (!holdingCameraMainHand(player) || !data.hasUUID("capture_id")) {
+            return;
+        }
+        final UUID id = data.getUUID("capture_id");
+        final CameraState state = CameraState.read(player.getMainHandItem());
+        final Optional<CameraCaptureService.Capture> capture = state.hasCaptureFor(player.getUUID()) && id.equals(state.captureId())
+                ? CameraCaptureService.get(player.getUUID(), id)
+                : Optional.empty();
+        if (capture.isEmpty()) {
+            SableSchematicApiPackets.sendCameraResult(player, "download", false, "capture_missing", "", id, 0, java.util.Set.of(), new byte[0]);
+            return;
+        }
+        SableSchematicApiPackets.sendCameraResult(
+                player, "download", true, "ok", readName(data), id, capture.get().bodyIds().size(), capture.get().bodyIds(), capture.get().data()
+        );
+    }
+
+    private static void handleCameraSaveComplete(final ServerPlayer player, final CompoundTag data) {
+        if (!holdingCameraMainHand(player) || !data.hasUUID("capture_id")) {
+            return;
+        }
+        final UUID id = data.getUUID("capture_id");
+        final String name = readName(data);
+        final CameraState state = CameraState.read(player.getMainHandItem());
+        if (!state.hasCaptureFor(player.getUUID()) || !id.equals(state.captureId()) || name.isBlank()) {
+            return;
+        }
+        CameraCaptureService.discard(player.getUUID(), id);
+        CameraState.write(player.getMainHandItem(), state.withSelectedLocalBlueprint(name).clearCapture());
+        player.getInventory().setChanged();
+    }
+
+    private static void handleCameraSelectLocal(final ServerPlayer player, final CompoundTag data) {
+        if (!holdingCameraMainHand(player)) {
+            return;
+        }
+        CameraState.write(player.getMainHandItem(), CameraState.read(player.getMainHandItem()).withSelectedLocalBlueprint(readName(data)));
+        player.getInventory().setChanged();
+    }
+
+    private static void handleCameraPlaceCached(final ServerPlayer player, final CompoundTag data) {
+        if (!canDirectPlaceWithCamera(player) || !data.hasUUID("capture_id")) {
+            return;
+        }
+        final CameraState state = CameraState.read(player.getMainHandItem());
+        final UUID id = data.getUUID("capture_id");
+        final Optional<CameraCaptureService.Capture> capture = state.hasCaptureFor(player.getUUID()) && id.equals(state.captureId())
+                ? CameraCaptureService.get(player.getUUID(), id)
+                : Optional.empty();
+        if (capture.isEmpty()) {
+            SableSchematicApiPackets.notify(player, Component.literal("Camera capture is no longer available."), ChatFormatting.YELLOW);
+            return;
+        }
+        placeCameraBytes(player, capture.get().data(), "camera_capture");
+    }
+
+    private static void handleCameraSetFov(final ServerPlayer player, final CompoundTag data) {
+        if (!holdingCameraMainHand(player)) {
+            return;
+        }
+        CameraState.write(player.getMainHandItem(), CameraState.read(player.getMainHandItem()).withTargetFov(data.getInt("fov")));
+        player.getInventory().setChanged();
+    }
+
+    private static void handleCameraSetPreviewView(final ServerPlayer player, final CompoundTag data) {
+        if (!holdingCameraMainHand(player)) {
+            return;
+        }
+        CameraState.write(
+                player.getMainHandItem(),
+                CameraState.read(player.getMainHandItem()).withPreviewView(data.getString("view"))
+        );
+        player.getInventory().setChanged();
+    }
+
+    private static void handleCameraPlaceLocal(final ServerPlayer player, final CompoundTag data) {
+        if (!canDirectPlaceWithCamera(player)) {
+            return;
+        }
+        final byte[] bytes = data.getByteArray("data");
+        if (bytes.length == 0 || bytes.length > SableSchematicApiPackets.MAX_BLUEPRINT_BYTES) {
+            SableSchematicApiPackets.notify(player, SableSchematicApiPackets.tr("status.invalid_upload"), ChatFormatting.RED);
+            return;
+        }
+        placeCameraBytes(player, bytes, readName(data));
+    }
+
+    private static void placeCameraBytes(final ServerPlayer player, final byte[] bytes, final String name) {
+        final HitResult hit = player.pick(96.0D, 0.0F, false);
+        if (hit.getType() == HitResult.Type.MISS) {
+            SableSchematicApiPackets.notify(player, Component.literal("No placement target."), ChatFormatting.YELLOW);
+            return;
+        }
+        final BlueprintToolResult result = BlueprintToolService.loadBytes(player.serverLevel(), hit.getLocation(), bytes, name);
+        SableSchematicApiPackets.notify(player,
+                result.success() ? Component.literal("Placed: " + name) : Component.literal("Camera placement failed."),
+                result.success() ? ChatFormatting.GREEN : ChatFormatting.RED);
+    }
+
+    private static boolean holdingCameraMainHand(final ServerPlayer player) {
+        return player.getMainHandItem().is(SableSchematicApiItems.CAMERA.get());
+    }
+
+    private static boolean canDirectPlaceWithCamera(final ServerPlayer player) {
+        return holdingCameraMainHand(player) && player.hasPermissions(2) && player.getAbilities().instabuild;
     }
 }

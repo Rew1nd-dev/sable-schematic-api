@@ -13,6 +13,8 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
 import dev.ryanhcode.sable.companion.math.Pose3d;
 import dev.ryanhcode.sable.api.sublevel.KinematicContraption;
+import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
+import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
 import dev.ryanhcode.sable.util.LevelAccelerator;
@@ -32,6 +34,7 @@ import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Set;
 import java.util.UUID;
 
@@ -64,13 +67,51 @@ public final class SableBlueprintExporter {
     }
 
     public static SableBlueprint export(final ServerLevel level, final Vec3 origin, final BoundingBox3d rootBounds) {
+        return export(level, origin, rootBounds, Sable.HELPER.getAllIntersecting(level, rootBounds));
+    }
+
+    /**
+     * Exports exactly the requested loaded bodies. This is used by camera
+     * captures, whose candidate selector is a view frustum rather than a box.
+     */
+    public static SableBlueprint exportSelected(final ServerLevel level,
+                                                final Vec3 origin,
+                                                final Collection<UUID> subLevelIds) {
+        final ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
+        if (container == null || subLevelIds == null || subLevelIds.isEmpty()) {
+            return emptyBlueprint(origin);
+        }
+
+        final List<SubLevel> selected = new ObjectArrayList<>();
+        final BoundsBuilder bounds = new BoundsBuilder();
+        for (final UUID id : subLevelIds) {
+            final SubLevel subLevel = container.getSubLevel(id);
+            if (!(subLevel instanceof final ServerSubLevel serverSubLevel) || serverSubLevel.isRemoved()) {
+                continue;
+            }
+            selected.add(serverSubLevel);
+            final dev.ryanhcode.sable.companion.math.BoundingBox3dc box = serverSubLevel.boundingBox();
+            bounds.include(new Vector3d(box.minX(), box.minY(), box.minZ()));
+            bounds.include(new Vector3d(box.maxX(), box.maxY(), box.maxZ()));
+        }
+
+        if (selected.isEmpty()) {
+            return emptyBlueprint(origin);
+        }
+        return export(level, origin, bounds.build(), selected);
+    }
+
+    private static SableBlueprint export(final ServerLevel level,
+                                         final Vec3 origin,
+                                         final BoundingBox3d rootBounds,
+                                         final Iterable<? extends SubLevel> candidates) {
         final BlueprintSaveSession session = new BlueprintSaveSession(level, new Vector3d(origin.x, origin.y, origin.z), rootBounds);
         final List<SableBlueprint.SubLevelData> entries = new ObjectArrayList<>();
         final Set<UUID> seen = new ObjectOpenHashSet<>();
         int id = 0;
 
         session.setPhase(BlueprintSavePhase.SELECT_SUBLEVELS);
-        for (final SubLevel subLevel : Sable.HELPER.getAllIntersecting(level, rootBounds)) {
+        for (final SubLevel subLevel : candidates) {
             if (!(subLevel instanceof final ServerSubLevel serverSubLevel)) {
                 continue;
             }
@@ -206,6 +247,15 @@ public final class SableBlueprintExporter {
                 List.of(),
                 new CompoundTag(),
                 frame.subLevel().getName()
+        );
+    }
+
+    private static SableBlueprint emptyBlueprint(final Vec3 origin) {
+        return new SableBlueprint(
+                new Vector3d(origin.x, origin.y, origin.z),
+                new BoundingBox3d(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                List.of(),
+                new CompoundTag()
         );
     }
 

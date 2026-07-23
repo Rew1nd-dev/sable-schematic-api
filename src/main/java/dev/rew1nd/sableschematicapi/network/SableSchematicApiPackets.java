@@ -1,6 +1,7 @@
 package dev.rew1nd.sableschematicapi.network;
 
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
+import dev.rew1nd.sableschematicapi.survival.camera.client.CameraClientSession;
 import dev.rew1nd.sableschematicapi.tool.client.sublevel.BlueprintToolServerSubLevelAction;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
@@ -84,6 +85,7 @@ public final class SableSchematicApiPackets {
         registrar.playToServer(BlueprintToolActionPayload.TYPE, BlueprintToolActionPayload.STREAM_CODEC, SableSchematicApiPackets::handleActionRequest);
         registrar.playToClient(BlueprintToolSaveResultPayload.TYPE, BlueprintToolSaveResultPayload.STREAM_CODEC, SableSchematicApiPackets::handleSaveResult);
         registrar.playToClient(BlueprintToolSubLevelListPayload.TYPE, BlueprintToolSubLevelListPayload.STREAM_CODEC, SableSchematicApiPackets::handleSubLevelList);
+        registrar.playToClient(CameraResultPayload.TYPE, CameraResultPayload.STREAM_CODEC, SableSchematicApiPackets::handleCameraResult);
     }
 
     private static void handleActionRequest(final BlueprintToolActionPayload payload, final IPayloadContext context) {
@@ -102,6 +104,10 @@ public final class SableSchematicApiPackets {
         BlueprintToolClientPacketHandler.handleSubLevelList(payload);
     }
 
+    private static void handleCameraResult(final CameraResultPayload payload, final IPayloadContext context) {
+        CameraClientSession.handleResult(payload);
+    }
+
     static void sendSaveResult(final ServerPlayer player,
                                final String name,
                                final boolean success,
@@ -112,6 +118,20 @@ public final class SableSchematicApiPackets {
 
     static void sendSubLevelList(final ServerPlayer player, final CompoundTag data) {
         PacketDistributor.sendToPlayer(player, new BlueprintToolSubLevelListPayload(data));
+    }
+
+    static void sendCameraResult(final ServerPlayer player,
+                                 final String action,
+                                 final boolean success,
+                                 final String reason,
+                                 final String name,
+                                 final java.util.UUID captureId,
+                                 final int bodyCount,
+                                 final java.util.Collection<java.util.UUID> bodyIds,
+                                 final byte[] data) {
+        PacketDistributor.sendToPlayer(player, new CameraResultPayload(
+                action, success, reason, name, captureId, bodyCount, java.util.List.copyOf(bodyIds), data
+        ));
     }
 
     static boolean canUseBlueprintTool(final ServerPlayer player) {

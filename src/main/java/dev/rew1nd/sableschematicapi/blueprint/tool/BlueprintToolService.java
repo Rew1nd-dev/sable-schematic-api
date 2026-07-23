@@ -147,7 +147,8 @@ public final class BlueprintToolService {
         }
     }
 
-    private static byte[] writeToBytes(final SableBlueprint blueprint) throws IOException {
+    /** Encodes a blueprint using the same compressed format transported to clients. */
+    public static byte[] writeToBytes(final SableBlueprint blueprint) throws IOException {
         try (final ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             NbtIo.writeCompressed(blueprint.save(), stream);
             return stream.toByteArray();

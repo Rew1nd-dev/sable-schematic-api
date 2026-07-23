@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -47,6 +48,24 @@ public final class BlueprintToolLocalFiles {
             throw new IOException("Blueprint file is larger than " + SableSchematicApiPackets.MAX_BLUEPRINT_BYTES + " bytes.");
         }
         return data;
+    }
+
+    public static Entry rename(final Entry entry, final String newName, final boolean overwrite) throws IOException {
+        if (entry == null) {
+            throw new IOException("No blueprint file selected.");
+        }
+        final Path target = path(newName);
+        final Path source = entry.path().toAbsolutePath().normalize();
+        if (source.equals(target)) {
+            return Entry.of(target);
+        }
+        if (!overwrite && Files.exists(target)) {
+            throw new java.nio.file.FileAlreadyExistsException(target.toString());
+        }
+        Files.move(source, target, overwrite
+                ? new StandardCopyOption[]{StandardCopyOption.REPLACE_EXISTING}
+                : new StandardCopyOption[]{});
+        return Entry.of(target);
     }
 
     private static Path path(final String name) throws IOException {

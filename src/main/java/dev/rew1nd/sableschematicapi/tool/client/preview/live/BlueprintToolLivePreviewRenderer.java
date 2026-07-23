@@ -6,6 +6,8 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
+import dev.rew1nd.sableschematicapi.api.client.preview.SableLivePreviewCapture;
+import dev.rew1nd.sableschematicapi.api.client.preview.SablePreviewView;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
 import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
 import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolPreviewEntityRenderers;
@@ -55,7 +57,11 @@ public final class BlueprintToolLivePreviewRenderer {
         final BlueprintToolLivePreviewGeometry geometry = BlueprintToolLivePreviewCollector.analyze(entries);
         final EnumMap<SableBlueprintPreview.View, int[]> views = new EnumMap<>(SableBlueprintPreview.View.class);
         for (final SableBlueprintPreview.View view : SableBlueprintPreview.View.values()) {
-            views.put(view, renderView(geometry, view, SableBlueprintPreview.DEFAULT_RESOLUTION));
+            views.put(view, renderCapture(
+                    geometry,
+                    SablePreviewView.fromStoredView(view),
+                    SableBlueprintPreview.DEFAULT_RESOLUTION
+            ).pixels());
         }
 
         return new SableBlueprintPreview(
@@ -66,9 +72,35 @@ public final class BlueprintToolLivePreviewRenderer {
         );
     }
 
-    private static int[] renderView(final BlueprintToolLivePreviewGeometry geometry,
-                                    final SableBlueprintPreview.View view,
-                                    final int resolution) {
+    /**
+     * Captures one view of the live sub-levels referenced by a blueprint.
+     *
+     * @return capture pixels and basis-space projection metadata, or {@code null}
+     * when any referenced live sub-level is unavailable
+     */
+    public static @Nullable SableLivePreviewCapture capture(
+            final SableBlueprint blueprint,
+            final SablePreviewView view,
+            final int resolution
+    ) {
+        if (!RenderSystem.isOnRenderThread()) {
+            throw new IllegalStateException("Live preview capture must run on the render thread.");
+        }
+        if (resolution <= 0) {
+            throw new IllegalArgumentException("resolution must be positive");
+        }
+        final List<BlueprintToolLivePreviewEntry> entries = BlueprintToolLivePreviewCollector.collect(blueprint);
+        if (entries.size() != blueprint.subLevels().size() || entries.isEmpty()) {
+            return null;
+        }
+        return renderCapture(BlueprintToolLivePreviewCollector.analyze(entries), view, resolution);
+    }
+
+    private static SableLivePreviewCapture renderCapture(
+            final BlueprintToolLivePreviewGeometry geometry,
+            final SablePreviewView view,
+            final int resolution
+    ) {
         final Minecraft minecraft = Minecraft.getInstance();
         final TextureTarget target = new TextureTarget(resolution, resolution, true, Minecraft.ON_OSX);
         final GlStateBackup glState = new GlStateBackup();
@@ -113,7 +145,12 @@ public final class BlueprintToolLivePreviewRenderer {
             renderEntities(geometry, camera, bufferSource);
             bufferSource.endBatch();
 
-            return BlueprintToolPreviewFramebuffer.readPixels(target, resolution);
+            return new SableLivePreviewCapture(
+                    resolution,
+                    geometry.basis().data().id(),
+                    BlueprintToolPreviewFramebuffer.readPixels(target, resolution),
+                    camera.projectionFrame()
+            );
         } finally {
             bufferSource.endBatch();
             if (drawingDiagram) {

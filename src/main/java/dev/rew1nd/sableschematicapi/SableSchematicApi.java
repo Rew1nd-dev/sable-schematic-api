@@ -11,6 +11,8 @@ import dev.rew1nd.sableschematicapi.compat.universalJoint.UniversalJointCompat;
 import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlockEntities;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlocks;
+import dev.rew1nd.sableschematicapi.survival.camera.CameraConfig;
+import dev.rew1nd.sableschematicapi.survival.camera.CameraCaptureService;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelDirectoryRemovalService;
 import dev.rew1nd.sableschematicapi.sublevel.RuntimeSubLevelStaticService;
@@ -20,7 +22,9 @@ import dev.ryanhcode.sable.platform.SableEventPlatform;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModList;
+import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
@@ -31,6 +35,7 @@ public final class SableSchematicApi {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public SableSchematicApi(final IEventBus modEventBus) {
+        ModLoadingContext.get().getActiveContainer().registerConfig(ModConfig.Type.SERVER, CameraConfig.SPEC);
         SableSchematicApiBlocks.register(modEventBus);
         SableSchematicApiBlockEntities.register(modEventBus);
         SableSchematicApiItems.register(modEventBus);
@@ -41,6 +46,7 @@ public final class SableSchematicApi {
         NeoForge.EVENT_BUS.addListener(PendingSubLevelDirectoryRemovalService::tick);
         NeoForge.EVENT_BUS.addListener(PendingSubLevelDirectoryRemovalService::onServerStopped);
         NeoForge.EVENT_BUS.addListener(RuntimeSubLevelStaticService::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(CameraCaptureService::onServerStopped);
         modEventBus.addListener(this::commonSetup);
     }
 

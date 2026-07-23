@@ -19,6 +19,7 @@ public final class SableSchematicApiCreativeTabs {
                     .icon(() -> new ItemStack(SableSchematicApiItems.BLUEPRINT_TOOL.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(SableSchematicApiItems.BLUEPRINT_TOOL.get());
+                        output.accept(SableSchematicApiItems.CAMERA.get());
                         output.accept(SableSchematicApiItems.SURVIVAL_BLUEPRINT.get());
                         output.accept(SableSchematicApiItems.BLUEPRINT_CANNON.get());
                         output.accept(SableSchematicApiItems.BLUEPRINT_TABLE.get());

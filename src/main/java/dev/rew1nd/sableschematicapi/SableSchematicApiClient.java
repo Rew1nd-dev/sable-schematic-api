@@ -6,6 +6,8 @@ import dev.rew1nd.sableschematicapi.client.frontier.SableFrontierLaserRenderer;
 import dev.rew1nd.sableschematicapi.client.frontier.SableFrontierShaderPreProcessor;
 import dev.rew1nd.sableschematicapi.compat.create.client.CreateBlueprintToolClientCompat;
 import dev.rew1nd.sableschematicapi.survival.client.BlueprintTableClientLocalFiles;
+import dev.rew1nd.sableschematicapi.survival.camera.client.CameraClientEvents;
+import dev.rew1nd.sableschematicapi.survival.camera.client.CameraKeyMappings;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolClientEvents;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolKeyMappings;
 import foundry.veil.platform.VeilEventPlatform;
@@ -20,6 +22,7 @@ import net.neoforged.neoforge.common.NeoForge;
 public final class SableSchematicApiClient {
     public SableSchematicApiClient(final IEventBus modEventBus) {
         modEventBus.addListener(BlueprintToolKeyMappings::register);
+        modEventBus.addListener(CameraKeyMappings::register);
         modEventBus.addListener(SableSchematicApiClient::clientSetup);
         NeoForge.EVENT_BUS.addListener(SableFrontierClientCommands::register);
         NeoForge.EVENT_BUS.addListener(SableFrontierAnimations::tick);
@@ -27,6 +30,7 @@ public final class SableSchematicApiClient {
         VeilEventPlatform.INSTANCE.onVeilAddShaderProcessors((provider, registry) ->
                 registry.addPreprocessor(new SableFrontierShaderPreProcessor(), false));
         BlueprintToolClientEvents.register();
+        CameraClientEvents.register();
     }
 
     private static void clientSetup(final FMLClientSetupEvent event) {

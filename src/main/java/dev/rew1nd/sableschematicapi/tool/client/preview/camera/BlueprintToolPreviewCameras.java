@@ -1,5 +1,7 @@
 package dev.rew1nd.sableschematicapi.tool.client.preview.camera;
 
+import dev.rew1nd.sableschematicapi.api.client.preview.SablePreviewProjectionFrame;
+import dev.rew1nd.sableschematicapi.api.client.preview.SablePreviewView;
 import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
 import dev.rew1nd.sableschematicapi.tool.client.preview.util.BlueprintToolPreviewBounds;
 import dev.rew1nd.sableschematicapi.tool.client.preview.util.BlueprintToolPreviewConstants;
@@ -15,6 +17,13 @@ public final class BlueprintToolPreviewCameras {
     public static BlueprintToolPreviewCamera liveCamera(final BoundingBox3d bounds,
                                                         final Pose3d basisPose,
                                                         final SableBlueprintPreview.View view,
+                                                        final int resolution) {
+        return liveCamera(bounds, basisPose, SablePreviewView.fromStoredView(view), resolution);
+    }
+
+    public static BlueprintToolPreviewCamera liveCamera(final BoundingBox3d bounds,
+                                                        final Pose3d basisPose,
+                                                        final SablePreviewView view,
                                                         final int resolution) {
         final BlueprintToolPreviewViewAxes axes = viewAxes(view);
         final BlueprintToolPreviewViewFrame frame = viewFrame(bounds, axes, resolution);
@@ -32,16 +41,22 @@ public final class BlueprintToolPreviewCameras {
                 (float) upWorld.x(), (float) upWorld.y(), (float) upWorld.z()
         );
 
-        return new BlueprintToolPreviewCamera(projection, modelView, cameraPosition);
+        return new BlueprintToolPreviewCamera(
+                projection,
+                modelView,
+                cameraPosition,
+                projectionFrame(frame, axes, resolution)
+        );
     }
 
     public static BlueprintToolPreviewCamera storedCamera(final BoundingBox3d bounds,
                                                           final SableBlueprintPreview.View view,
                                                           final int resolution) {
-        final BlueprintToolPreviewViewAxes axes = viewAxes(view);
+        final SablePreviewView previewView = SablePreviewView.fromStoredView(view);
+        final BlueprintToolPreviewViewAxes axes = viewAxes(previewView);
         final BlueprintToolPreviewViewFrame frame = viewFrame(bounds, axes, resolution);
         final double radius = cameraRadius(frame.halfSpan() * 2.0, frame.depth() * 2.0);
-        final Vector3d cameraOffsetLocal = cameraOffset(view, radius);
+        final Vector3d cameraOffsetLocal = cameraOffset(previewView, radius);
         final Vector3d cameraPosition = new Vector3d(frame.center()).add(cameraOffsetLocal);
         final float far = (float) (cameraOffsetLocal.length() + frame.depth() + 32.0);
         final Matrix4f projection = new Matrix4f().ortho(-frame.halfSpan(), frame.halfSpan(), -frame.halfSpan(), frame.halfSpan(), 0.05F, far);
@@ -51,7 +66,12 @@ public final class BlueprintToolPreviewCameras {
                 (float) axes.up().x(), (float) axes.up().y(), (float) axes.up().z()
         );
 
-        return new BlueprintToolPreviewCamera(projection, modelView, cameraPosition);
+        return new BlueprintToolPreviewCamera(
+                projection,
+                modelView,
+                cameraPosition,
+                projectionFrame(frame, axes, resolution)
+        );
     }
 
     public static Matrix4f cameraSpaceFromBasis(final BlueprintToolPreviewCamera camera) {
@@ -62,14 +82,12 @@ public final class BlueprintToolPreviewCameras {
         );
     }
 
-    private static BlueprintToolPreviewViewAxes viewAxes(final SableBlueprintPreview.View view) {
-        final Vector3d cameraOffset = new Vector3d(view.xSign(), 1.0, view.zSign());
-        final Vector3d forward = new Vector3d(cameraOffset).negate().normalize();
-        final Vector3d up = new Vector3d(0.0, 1.0, 0.0)
-                .sub(new Vector3d(forward).mul(forward.y()))
-                .normalize();
-        final Vector3d right = new Vector3d(forward).cross(up).normalize();
-        return new BlueprintToolPreviewViewAxes(right, up, forward);
+    private static BlueprintToolPreviewViewAxes viewAxes(final SablePreviewView view) {
+        return new BlueprintToolPreviewViewAxes(
+                new Vector3d(view.right()),
+                new Vector3d(view.up()),
+                new Vector3d(view.forward())
+        );
     }
 
     private static BlueprintToolPreviewViewFrame viewFrame(final BoundingBox3d bounds,
@@ -98,8 +116,18 @@ public final class BlueprintToolPreviewCameras {
         return new BlueprintToolPreviewViewFrame(center, (float) (paddedSpan * 0.5), Math.max(depth, 1.0));
     }
 
-    private static Vector3d cameraOffset(final SableBlueprintPreview.View view, final double radius) {
-        return new Vector3d(view.xSign() * radius, radius, view.zSign() * radius);
+    private static Vector3d cameraOffset(final SablePreviewView view, final double radius) {
+        return new Vector3d(view.cameraOffsetDirection()).mul(radius);
+    }
+
+    private static SablePreviewProjectionFrame projectionFrame(
+            final BlueprintToolPreviewViewFrame frame,
+            final BlueprintToolPreviewViewAxes axes,
+            final int resolution
+    ) {
+        return new SablePreviewProjectionFrame(
+                frame.center(), axes.right(), axes.up(), frame.halfSpan(), resolution
+        );
     }
 
     private static double cameraRadius(final double paddedSpan, final double depth) {
