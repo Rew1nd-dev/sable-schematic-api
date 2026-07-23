@@ -22,7 +22,7 @@ out/
 
 .run/
 
-.agents/*
+.agents
 
 ### Eclipse ###
 .apt_generated
