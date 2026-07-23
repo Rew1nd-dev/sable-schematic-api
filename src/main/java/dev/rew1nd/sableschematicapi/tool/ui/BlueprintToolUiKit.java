@@ -248,6 +248,34 @@ public final class BlueprintToolUiKit {
         drawFullViewLabel(guiContext, view, x, y);
     }
 
+    /** Draws only preview pixels, for callers whose LDLib stylesheet owns the panel chrome. */
+    public static void drawPreviewPixels(final GUIContext guiContext,
+                                         final SableBlueprintPreview preview,
+                                         final SableBlueprintPreview.View view,
+                                         final int x,
+                                         final int y,
+                                         final int width,
+                                         final int height) {
+        if (preview == null || width <= 0 || height <= 0) {
+            return;
+        }
+        final int resolution = preview.resolution();
+        final int[] pixels = preview.pixels(view);
+        if (pixels == null || pixels.length != resolution * resolution) {
+            return;
+        }
+        for (int py = 0; py < height; py++) {
+            final int sourceY = py * resolution / height;
+            for (int px = 0; px < width; px++) {
+                final int sourceX = px * resolution / width;
+                final int color = pixels[sourceY * resolution + sourceX];
+                if ((color >>> 24) != 0) {
+                    guiContext.graphics.fill(x + px, y + py, x + px + 1, y + py + 1, color);
+                }
+            }
+        }
+    }
+
     private static void drawFullViewLabel(final GUIContext guiContext,
                                           final SableBlueprintPreview.View view,
                                           final int x,

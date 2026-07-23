@@ -1,0 +1,4 @@
+{
+  "vertex": "veil:blit_screen",
+  "fragment": "sable_schematic_api:camera_body_outline_composite"
+}

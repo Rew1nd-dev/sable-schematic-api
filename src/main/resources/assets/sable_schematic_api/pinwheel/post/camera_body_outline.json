@@ -1,0 +1,16 @@
+{
+  "stages": [
+    {
+      "type": "veil:blit",
+      "shader": "sable_schematic_api:camera_body_outline_composite",
+      "in": "minecraft:main"
+    }
+  ],
+  "textures": {
+    "BodyMaskSampler": {
+      "type": "framebuffer",
+      "name": "sable_schematic_api:camera_body_outline_mask"
+    }
+  },
+  "renderStage": "after_translucent_blocks"
+}

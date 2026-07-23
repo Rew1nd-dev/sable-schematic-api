@@ -3,6 +3,7 @@ package dev.rew1nd.sableschematicapi.tool;
 import dev.rew1nd.sableschematicapi.SableSchematicApi;
 import dev.rew1nd.sableschematicapi.survival.BlueprintDataItem;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlocks;
+import dev.rew1nd.sableschematicapi.survival.camera.CameraItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -21,6 +22,11 @@ public final class SableSchematicApiItems {
     public static final DeferredHolder<Item, BlueprintDataItem> SURVIVAL_BLUEPRINT = ITEMS.register(
             "survival_blueprint",
             () -> new BlueprintDataItem(new Item.Properties().stacksTo(1))
+    );
+
+    public static final DeferredHolder<Item, CameraItem> CAMERA = ITEMS.register(
+            "camera",
+            () -> new CameraItem(new Item.Properties().stacksTo(1))
     );
 
     public static final DeferredHolder<Item, BlockItem> BLUEPRINT_CANNON = ITEMS.register(

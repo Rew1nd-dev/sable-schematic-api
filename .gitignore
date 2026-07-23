@@ -22,6 +22,8 @@ out/
 
 .run/
 
+.agents
+
 ### Eclipse ###
 .apt_generated
 .classpath
