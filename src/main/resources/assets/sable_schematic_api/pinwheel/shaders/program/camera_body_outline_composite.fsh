@@ -27,6 +27,10 @@ void main() {
     around = max(around, bodyMask(texCoord + vec2(-texel.x,  texel.y)));
     around = max(around, bodyMask(texCoord + vec2( texel.x, -texel.y)));
     around = max(around, bodyMask(texCoord + vec2(-texel.x, -texel.y)));
+    around = max(around, bodyMask(texCoord + vec2( texel.x * 2.0,  0.0)));
+    around = max(around, bodyMask(texCoord + vec2(-texel.x * 2.0,  0.0)));
+    around = max(around, bodyMask(texCoord + vec2( 0.0,  texel.y * 2.0)));
+    around = max(around, bodyMask(texCoord + vec2( 0.0, -texel.y * 2.0)));
     float edge = clamp(around - center, 0.0, 1.0);
     float strength = edge * OutlineColor.a;
     fragColor = vec4(mix(scene.rgb, OutlineColor.rgb, strength), scene.a);

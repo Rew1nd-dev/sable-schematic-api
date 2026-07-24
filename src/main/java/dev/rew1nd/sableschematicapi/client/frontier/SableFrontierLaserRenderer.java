@@ -44,7 +44,9 @@ public final class SableFrontierLaserRenderer {
         }
 
         final List<FrontierLaserStore.Entry> entries = FrontierLaserStore.snapshot();
-        if (entries.isEmpty()) {
+        final List<ProjectorFrontierClientGroups.LaserEntry> projectorEntries =
+                ProjectorFrontierClientGroups.laserEntries();
+        if (entries.isEmpty() && projectorEntries.isEmpty()) {
             return;
         }
 
@@ -91,6 +93,10 @@ public final class SableFrontierLaserRenderer {
 
                 FrontierLaserStore.rememberBase(entry.subLevel(), base);
                 renderCone(consumer, matrix, entry.apexWorld(), base);
+                rendered = true;
+            }
+            for (final ProjectorFrontierClientGroups.LaserEntry entry : projectorEntries) {
+                renderCone(consumer, matrix, entry.apex(), entry.base());
                 rendered = true;
             }
         } finally {

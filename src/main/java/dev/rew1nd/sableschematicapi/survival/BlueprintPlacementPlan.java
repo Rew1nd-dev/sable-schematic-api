@@ -95,6 +95,15 @@ public final class BlueprintPlacementPlan {
         return withBasisPose(subLevels, layout, placementBasisPose);
     }
 
+    /**
+     * Returns the blueprint's complete bounds in the selected basis body's local
+     * coordinate frame. Unlike an individual sub-level's normalized local bounds,
+     * this frame preserves the saved anchor/center-of-mass offset.
+     */
+    public static BoundingBox3d basisBounds(final SableBlueprint blueprint) {
+        return canonicalLayout(blueprint).bounds();
+    }
+
     private static BlueprintPlacementPlan empty(final Vector3dc origin) {
         return new BlueprintPlacementPlan(
                 NO_BASIS,

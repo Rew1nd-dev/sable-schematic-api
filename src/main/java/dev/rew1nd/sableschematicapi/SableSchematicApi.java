@@ -11,8 +11,17 @@ import dev.rew1nd.sableschematicapi.compat.universalJoint.UniversalJointCompat;
 import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlockEntities;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlocks;
+import dev.rew1nd.sableschematicapi.survival.SableSchematicApiDataComponents;
 import dev.rew1nd.sableschematicapi.survival.camera.CameraConfig;
 import dev.rew1nd.sableschematicapi.survival.camera.CameraCaptureService;
+import dev.rew1nd.sableschematicapi.survival.manuscript.ManuscriptServerSessions;
+import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterConfig;
+import dev.rew1nd.sableschematicapi.survival.projector.ProjectorConfig;
+import dev.rew1nd.sableschematicapi.survival.projector.ProjectorForceLoadTickets;
+import dev.rew1nd.sableschematicapi.survival.projector.ProjectorTerrainScanScheduler;
+import dev.rew1nd.sableschematicapi.survival.projector.ProjectorRevealGroups;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelLoadTeleportService;
 import dev.rew1nd.sableschematicapi.sublevel.PendingSubLevelDirectoryRemovalService;
 import dev.rew1nd.sableschematicapi.sublevel.RuntimeSubLevelStaticService;
@@ -36,8 +45,19 @@ public final class SableSchematicApi {
 
     public SableSchematicApi(final IEventBus modEventBus) {
         ModLoadingContext.get().getActiveContainer().registerConfig(ModConfig.Type.SERVER, CameraConfig.SPEC);
+        ModLoadingContext.get().getActiveContainer().registerConfig(
+                ModConfig.Type.SERVER,
+                FilmPrinterConfig.SPEC,
+                "sable-schematic-api-film-printer.toml"
+        );
+        ModLoadingContext.get().getActiveContainer().registerConfig(
+                ModConfig.Type.SERVER,
+                ProjectorConfig.SPEC,
+                "sable-schematic-api-projector.toml"
+        );
         SableSchematicApiBlocks.register(modEventBus);
         SableSchematicApiBlockEntities.register(modEventBus);
+        SableSchematicApiDataComponents.register(modEventBus);
         SableSchematicApiItems.register(modEventBus);
         SableSchematicApiCreativeTabs.register(modEventBus);
         SableSchematicApiPackets.register(modEventBus);
@@ -47,12 +67,37 @@ public final class SableSchematicApi {
         NeoForge.EVENT_BUS.addListener(PendingSubLevelDirectoryRemovalService::onServerStopped);
         NeoForge.EVENT_BUS.addListener(RuntimeSubLevelStaticService::onServerStopped);
         NeoForge.EVENT_BUS.addListener(CameraCaptureService::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(ManuscriptServerSessions::tick);
+        NeoForge.EVENT_BUS.addListener(ManuscriptServerSessions::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(ManuscriptServerSessions::onPlayerLoggedOut);
+        NeoForge.EVENT_BUS.addListener(ManuscriptServerSessions::onLivingDeath);
+        NeoForge.EVENT_BUS.addListener(ProjectorTerrainScanScheduler::tick);
+        NeoForge.EVENT_BUS.addListener(ProjectorTerrainScanScheduler::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(ProjectorRevealGroups::onPlayerLoggedIn);
+        NeoForge.EVENT_BUS.addListener(ProjectorRevealGroups::onPlayerChangedDimension);
+        NeoForge.EVENT_BUS.addListener(ProjectorRevealGroups::onServerStopped);
         modEventBus.addListener(this::commonSetup);
+        modEventBus.addListener(this::registerCapabilities);
+    }
+
+    private void registerCapabilities(final RegisterCapabilitiesEvent event) {
+        event.registerBlockEntity(
+                Capabilities.ItemHandler.BLOCK,
+                SableSchematicApiBlockEntities.FILM_PRINTER.get(),
+                (blockEntity, side) -> blockEntity.automationInventory()
+        );
+        event.registerBlockEntity(
+                Capabilities.ItemHandler.BLOCK,
+                SableSchematicApiBlockEntities.PROJECTOR.get(),
+                (blockEntity, side) -> blockEntity.automationInventory()
+        );
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
+            ProjectorForceLoadTickets.register();
             SableEventPlatform.INSTANCE.onSubLevelContainerReady(RuntimeSubLevelStaticService::onSubLevelContainerReady);
+            SableEventPlatform.INSTANCE.onSubLevelContainerReady(ProjectorForceLoadTickets::cleanupOrphans);
 
             if (ModList.get().isLoaded("create")) {
                 CreateBlueprintCompat.register();

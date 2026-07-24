@@ -8,6 +8,11 @@ import dev.rew1nd.sableschematicapi.compat.create.client.CreateBlueprintToolClie
 import dev.rew1nd.sableschematicapi.survival.client.BlueprintTableClientLocalFiles;
 import dev.rew1nd.sableschematicapi.survival.camera.client.CameraClientEvents;
 import dev.rew1nd.sableschematicapi.survival.camera.client.CameraKeyMappings;
+import dev.rew1nd.sableschematicapi.survival.manuscript.BlueprintManuscriptClientAccess;
+import dev.rew1nd.sableschematicapi.survival.manuscript.client.ManuscriptClientSession;
+import dev.rew1nd.sableschematicapi.survival.manuscript.BlueprintManuscriptItem;
+import dev.rew1nd.sableschematicapi.survival.film.FilmItem;
+import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolClientEvents;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolKeyMappings;
 import foundry.veil.platform.VeilEventPlatform;
@@ -17,6 +22,7 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import net.minecraft.client.renderer.item.ItemProperties;
 
 @Mod(value = SableSchematicApi.MODID, dist = Dist.CLIENT)
 public final class SableSchematicApiClient {
@@ -31,11 +37,24 @@ public final class SableSchematicApiClient {
                 registry.addPreprocessor(new SableFrontierShaderPreProcessor(), false));
         BlueprintToolClientEvents.register();
         CameraClientEvents.register();
+        BlueprintManuscriptClientAccess.register(ManuscriptClientSession::begin);
+        ManuscriptClientSession.register();
+        NeoForge.EVENT_BUS.addListener(ManuscriptClientSession::onLoggingOut);
     }
 
     private static void clientSetup(final FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             BlueprintTableClientLocalFiles.register();
+            ItemProperties.register(
+                    SableSchematicApiItems.BLUEPRINT_MANUSCRIPT.get(),
+                    SableSchematicApi.id("filled"),
+                    (stack, level, entity, seed) -> BlueprintManuscriptItem.state(stack).isFilled() ? 1.0F : 0.0F
+            );
+            ItemProperties.register(
+                    SableSchematicApiItems.FILM.get(),
+                    SableSchematicApi.id("recorded"),
+                    (stack, level, entity, seed) -> FilmItem.state(stack).isRecorded() ? 1.0F : 0.0F
+            );
 
             if (ModList.get().isLoaded("create")) {
                 CreateBlueprintToolClientCompat.register();

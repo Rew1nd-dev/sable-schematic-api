@@ -15,6 +15,9 @@ public final class CameraConfig {
     public static final ModConfigSpec.IntValue MAX_BLUEPRINT_BYTES = BUILDER
             .comment("Maximum compressed byte size of a camera capture.")
             .defineInRange("camera.maxBlueprintBytes", 16 * 1024 * 1024, 1_024, 64 * 1024 * 1024);
+    public static final ModConfigSpec.IntValue MAX_MANUSCRIPT_UPLOAD_BYTES = BUILDER
+            .comment("Maximum compressed byte size of one blueprint manuscript upload.")
+            .defineInRange("manuscript.maxUploadBytes", 16 * 1024 * 1024, 1_024, 256 * 1024 * 1024);
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private CameraConfig() {

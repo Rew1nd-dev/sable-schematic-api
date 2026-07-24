@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "book=false,facing=north,tape=false": { "model": "sable_schematic_api:block/film_printer/none" },
+    "book=false,facing=east,tape=false": { "model": "sable_schematic_api:block/film_printer/none", "y": 90 },
+    "book=false,facing=south,tape=false": { "model": "sable_schematic_api:block/film_printer/none", "y": 180 },
+    "book=false,facing=west,tape=false": { "model": "sable_schematic_api:block/film_printer/none", "y": 270 },
+    "book=true,facing=north,tape=false": { "model": "sable_schematic_api:block/film_printer/book_only" },
+    "book=true,facing=east,tape=false": { "model": "sable_schematic_api:block/film_printer/book_only", "y": 90 },
+    "book=true,facing=south,tape=false": { "model": "sable_schematic_api:block/film_printer/book_only", "y": 180 },
+    "book=true,facing=west,tape=false": { "model": "sable_schematic_api:block/film_printer/book_only", "y": 270 },
+    "book=false,facing=north,tape=true": { "model": "sable_schematic_api:block/film_printer/tape_only" },
+    "book=false,facing=east,tape=true": { "model": "sable_schematic_api:block/film_printer/tape_only", "y": 90 },
+    "book=false,facing=south,tape=true": { "model": "sable_schematic_api:block/film_printer/tape_only", "y": 180 },
+    "book=false,facing=west,tape=true": { "model": "sable_schematic_api:block/film_printer/tape_only", "y": 270 },
+    "book=true,facing=north,tape=true": { "model": "sable_schematic_api:block/film_printer/full" },
+    "book=true,facing=east,tape=true": { "model": "sable_schematic_api:block/film_printer/full", "y": 90 },
+    "book=true,facing=south,tape=true": { "model": "sable_schematic_api:block/film_printer/full", "y": 180 },
+    "book=true,facing=west,tape=true": { "model": "sable_schematic_api:block/film_printer/full", "y": 270 }
+  }
+}

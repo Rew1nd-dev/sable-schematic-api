@@ -1,0 +1,50 @@
+{
+  "textures": {
+    "gray": "minecraft:block/gray_concrete",
+    "x": "minecraft:block/red_concrete",
+    "y": "minecraft:block/lime_concrete",
+    "z": "minecraft:block/blue_concrete",
+    "particle": "minecraft:block/gray_concrete"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "north": { "texture": "#gray" },
+        "south": { "texture": "#gray" },
+        "east": { "texture": "#gray" },
+        "west": { "texture": "#gray" },
+        "up": { "texture": "#gray" },
+        "down": { "texture": "#gray" }
+      }
+    },
+    {
+      "from": [8, 7, 7],
+      "to": [16, 9, 9],
+      "faces": {
+        "north": { "texture": "#x" }, "south": { "texture": "#x" },
+        "east": { "texture": "#x" }, "west": { "texture": "#x" },
+        "up": { "texture": "#x" }, "down": { "texture": "#x" }
+      }
+    },
+    {
+      "from": [7, 8, 7],
+      "to": [9, 16, 9],
+      "faces": {
+        "north": { "texture": "#y" }, "south": { "texture": "#y" },
+        "east": { "texture": "#y" }, "west": { "texture": "#y" },
+        "up": { "texture": "#y" }, "down": { "texture": "#y" }
+      }
+    },
+    {
+      "from": [7, 7, 8],
+      "to": [9, 9, 16],
+      "faces": {
+        "north": { "texture": "#z" }, "south": { "texture": "#z" },
+        "east": { "texture": "#z" }, "west": { "texture": "#z" },
+        "up": { "texture": "#z" }, "down": { "texture": "#z" }
+      }
+    }
+  ]
+}

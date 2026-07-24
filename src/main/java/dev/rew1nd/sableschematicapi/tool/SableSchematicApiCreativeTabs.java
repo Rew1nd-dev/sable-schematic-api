@@ -20,9 +20,15 @@ public final class SableSchematicApiCreativeTabs {
                     .displayItems((parameters, output) -> {
                         output.accept(SableSchematicApiItems.BLUEPRINT_TOOL.get());
                         output.accept(SableSchematicApiItems.CAMERA.get());
+                        output.accept(SableSchematicApiItems.BLUEPRINT_MANUSCRIPT.get());
+                        output.accept(SableSchematicApiItems.FILM.get());
                         output.accept(SableSchematicApiItems.SURVIVAL_BLUEPRINT.get());
                         output.accept(SableSchematicApiItems.BLUEPRINT_CANNON.get());
                         output.accept(SableSchematicApiItems.BLUEPRINT_TABLE.get());
+                        output.accept(SableSchematicApiItems.FILM_PRINTER.get());
+                        output.accept(SableSchematicApiItems.PROJECTOR.get());
+                        output.accept(SableSchematicApiItems.PROJECTOR_SCREEN.get());
+                        output.accept(SableSchematicApiItems.PROJECTOR_SCREEN_LOCATOR.get());
                     })
                     .build()
     );

@@ -4,7 +4,7 @@ import dev.rew1nd.sableschematicapi.api.blueprint.survival.BlueprintBlockCostCon
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.CostQuote;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.CostTiming;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessCostContext;
-import dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessCostStrategy;
+import dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintIncrementalPostProcessCostStrategy;
 import dev.rew1nd.sableschematicapi.survival.BlueprintBlockCostRules;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
  * Computes the material cost for a contraption entity by iterating over
  * the blocks inside the contraption and delegating to {@link BlueprintBlockCostRules}.
  */
-public final class ContraptionPlaceCost implements BlueprintPostProcessCostStrategy<ContraptionPlaceOperation> {
+public final class ContraptionPlaceCost implements BlueprintIncrementalPostProcessCostStrategy<ContraptionPlaceOperation> {
 
     @Override
     public ResourceLocation type() {
@@ -29,14 +29,28 @@ public final class ContraptionPlaceCost implements BlueprintPostProcessCostStrat
     @Override
     public CostQuote quote(final ContraptionPlaceOperation operation,
                             final BlueprintPostProcessCostContext context) {
+        final Cursor cursor = this.begin(operation, context);
+        CostQuote total = CostQuote.empty(CostTiming.COMMIT);
+        while (true) {
+            final Step step = cursor.step(Integer.MAX_VALUE);
+            total = total.merge(step.quote());
+            if (step.done()) {
+                return total;
+            }
+        }
+    }
+
+    @Override
+    public Cursor begin(final ContraptionPlaceOperation operation,
+                        final BlueprintPostProcessCostContext context) {
         final CompoundTag entityTag = operation.entityTag();
         if (!entityTag.contains("Contraption", Tag.TAG_COMPOUND)) {
-            return CostQuote.empty(CostTiming.COMMIT);
+            return EmptyCursor.INSTANCE;
         }
 
         final CompoundTag contraption = entityTag.getCompound("Contraption");
         if (!contraption.contains("Blocks", Tag.TAG_COMPOUND)) {
-            return CostQuote.empty(CostTiming.COMMIT);
+            return EmptyCursor.INSTANCE;
         }
 
         final CompoundTag blocksTag = contraption.getCompound("Blocks");
@@ -50,20 +64,60 @@ public final class ContraptionPlaceCost implements BlueprintPostProcessCostStrat
         }
 
         final BlueprintBlockCostContext blockCtx =
-                new BlueprintBlockCostContext(context.level(), Vec3.ZERO);
+                new BlueprintBlockCostContext(
+                        context.level(),
+                        new Vec3(
+                                context.session().origin().x(),
+                                context.session().origin().y(),
+                                context.session().origin().z()
+                        )
+                );
         final ListTag blockList = blocksTag.getList("BlockList", Tag.TAG_COMPOUND);
-        CostQuote total = CostQuote.empty(CostTiming.COMMIT);
+        return new ContraptionCursor(palette, blockList, blockCtx);
+    }
 
-        for (int i = 0; i < blockList.size(); i++) {
-            final CompoundTag entry = blockList.getCompound(i);
-            final int stateId = entry.getInt("State");
-            if (stateId >= 0 && stateId < palette.length) {
-                total = total.merge(
-                        BlueprintBlockCostRules.quotePlacementForState(palette[stateId], blockCtx)
-                                .withTiming(CostTiming.COMMIT));
-            }
+    private static final class ContraptionCursor implements Cursor {
+        private final BlockState[] palette;
+        private final ListTag blocks;
+        private final BlueprintBlockCostContext context;
+        private int index;
+
+        private ContraptionCursor(final BlockState[] palette,
+                                  final ListTag blocks,
+                                  final BlueprintBlockCostContext context) {
+            this.palette = palette;
+            this.blocks = blocks;
+            this.context = context;
         }
 
-        return total;
+        @Override
+        public Step step(final int maxWorkUnits) {
+            if (maxWorkUnits <= 0 || this.index >= this.blocks.size()) {
+                return new Step(CostQuote.empty(CostTiming.COMMIT), 0, this.index >= this.blocks.size());
+            }
+            CostQuote total = CostQuote.empty(CostTiming.COMMIT);
+            int work = 0;
+            while (work < maxWorkUnits && this.index < this.blocks.size()) {
+                final CompoundTag entry = this.blocks.getCompound(this.index++);
+                final int stateId = entry.getInt("State");
+                if (stateId < 0 || stateId >= this.palette.length) {
+                    throw new IllegalStateException("Contraption block references invalid palette state " + stateId);
+                }
+                total = total.merge(
+                        BlueprintBlockCostRules.quotePlacementForState(this.palette[stateId], this.context)
+                                .withTiming(CostTiming.COMMIT));
+                work++;
+            }
+            return new Step(total, work, this.index >= this.blocks.size());
+        }
+    }
+
+    private enum EmptyCursor implements Cursor {
+        INSTANCE;
+
+        @Override
+        public Step step(final int maxWorkUnits) {
+            return new Step(CostQuote.empty(CostTiming.COMMIT), 0, true);
+        }
     }
 }

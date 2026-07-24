@@ -1,6 +1,8 @@
 package dev.rew1nd.sableschematicapi.survival;
 
 import dev.rew1nd.sableschematicapi.SableSchematicApi;
+import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterBlockEntity;
+import dev.rew1nd.sableschematicapi.survival.projector.ProjectorBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.bus.api.IEventBus;
@@ -26,6 +28,22 @@ public final class SableSchematicApiBlockEntities {
             () -> BlockEntityType.Builder.of(
                     BlueprintTableBlockEntity::new,
                     SableSchematicApiBlocks.BLUEPRINT_TABLE.get()
+            ).build(null)
+    );
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<FilmPrinterBlockEntity>> FILM_PRINTER = BLOCK_ENTITIES.register(
+            "film_printer",
+            () -> BlockEntityType.Builder.of(
+                    FilmPrinterBlockEntity::new,
+                    SableSchematicApiBlocks.FILM_PRINTER.get()
+            ).build(null)
+    );
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ProjectorBlockEntity>> PROJECTOR = BLOCK_ENTITIES.register(
+            "projector",
+            () -> BlockEntityType.Builder.of(
+                    ProjectorBlockEntity::new,
+                    SableSchematicApiBlocks.PROJECTOR.get()
             ).build(null)
     );
 

@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "sable_schematic_api:block/projector" },
+    "facing=east": { "model": "sable_schematic_api:block/projector", "y": 90 },
+    "facing=south": { "model": "sable_schematic_api:block/projector", "y": 180 },
+    "facing=west": { "model": "sable_schematic_api:block/projector", "y": 270 }
+  }
+}

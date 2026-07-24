@@ -50,11 +50,13 @@ public final class SableFrontierAnimations {
 
     public static void clearAll() {
         ANIMATIONS.clear();
+        ProjectorFrontierClientGroups.clear();
         FrontierLaserStore.clearAll();
         FrontierDataStore.clearAll();
     }
 
     public static void tick(final ClientTickEvent.Post event) {
+        ProjectorFrontierClientGroups.tick();
         FrontierLaserStore.tick();
         ANIMATIONS.entrySet().removeIf(entry -> tick(entry.getKey(), entry.getValue()));
     }

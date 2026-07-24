@@ -23,6 +23,7 @@ import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
 import dev.rew1nd.sableschematicapi.survival.camera.CameraState;
 import dev.rew1nd.sableschematicapi.survival.camera.client.CameraClientEvents;
 import dev.rew1nd.sableschematicapi.survival.camera.client.CameraClientSession;
+import dev.rew1nd.sableschematicapi.survival.client.ui.BlueprintLibraryUiKit;
 import dev.rew1nd.sableschematicapi.tool.client.storage.BlueprintToolLocalFiles;
 import dev.vfyjxf.taffy.style.AlignItems;
 import dev.vfyjxf.taffy.style.FlexDirection;
@@ -36,44 +37,21 @@ import java.util.List;
 
 /** ORE-styled camera library whose controls and chrome are entirely LDLib-owned. */
 public final class CameraUiRenderer {
-    static final float ROOT_WIDTH = 284.0F;
-    static final float ROOT_HEIGHT = 210.0F;
-    static final float CONTENT_WIDTH = 272.0F;
-    static final float STRING_HEIGHT = 12.0F;
-    static final float BUTTON_SIZE = 16.0F;
-    static final float GAP = 4.0F;
-    static final String ROOT_CLASS = "__camera_root__";
-    static final String STATE_CLASS = "__camera_state__";
-    static final String TILE_CLASS = "__camera_tile__";
-    static final String NAME_CLASS = "__camera_name__";
-    static final String PREVIEW_CLASS = "__camera_preview__";
-    static final String OVERLAY_CLASS = "__camera_overlay__";
+    static final float ROOT_WIDTH = BlueprintLibraryUiKit.ROOT_WIDTH;
+    static final float ROOT_HEIGHT = BlueprintLibraryUiKit.ROOT_HEIGHT;
+    static final float CONTENT_WIDTH = BlueprintLibraryUiKit.CONTENT_WIDTH;
+    static final float STRING_HEIGHT = BlueprintLibraryUiKit.STRING_HEIGHT;
+    static final float BUTTON_SIZE = BlueprintLibraryUiKit.BUTTON_SIZE;
+    static final float GAP = BlueprintLibraryUiKit.GAP;
+    static final String ROOT_CLASS = BlueprintLibraryUiKit.ROOT_CLASS;
+    static final String STATE_CLASS = BlueprintLibraryUiKit.STATE_CLASS;
+    static final String TILE_CLASS = BlueprintLibraryUiKit.TILE_CLASS;
+    static final String NAME_CLASS = BlueprintLibraryUiKit.NAME_CLASS;
+    static final String PREVIEW_CLASS = BlueprintLibraryUiKit.PREVIEW_CLASS;
+    static final String OVERLAY_CLASS = BlueprintLibraryUiKit.OVERLAY_CLASS;
     static final String SAVE_OVERLAY_CLASS = "__camera_save_overlay__";
-    static final String LSS = """
-            .__camera_root__ {
-              background: built-in(ui-ore:BORDER_7);
-            }
-
-            .__camera_state__, .__camera_name__ {
-              background: built-in(ui-ore:RECT2);
-              padding-horizontal: 2;
-            }
-
-            .__camera_tile__ {
-              background: empty;
-              padding-all: 0;
-            }
-
-            .__camera_tile__:hovered {
-              background: #66383838;
-            }
-
-            .__camera_preview__ {
-              background: built-in(ui-ore:RECT2);
-              padding-all: 2;
-            }
-
-            .__camera_overlay__, .__camera_save_overlay__ {
+    static final String LSS = BlueprintLibraryUiKit.LSS + """
+            .__camera_save_overlay__ {
               background: built-in(ui-ore:BORDER_7);
             }
             """;
@@ -215,68 +193,23 @@ public final class CameraUiRenderer {
     }
 
     static UIElement row(final String id) {
-        return new UIElement().setId(id).layout(layout -> {
-            layout.widthPercent(100.0F);
-            layout.height(BUTTON_SIZE);
-            layout.flexDirection(FlexDirection.ROW);
-            layout.alignItems(AlignItems.CENTER);
-            layout.gapAll(GAP);
-            layout.flexShrink(0.0F);
-        });
+        return BlueprintLibraryUiKit.row(id);
     }
 
     static Label title(final Component text) {
-        final Label label = label(text, Horizontal.LEFT);
-        label.layout(layout -> {
-            layout.widthPercent(100.0F);
-            layout.height(STRING_HEIGHT);
-        });
-        return label;
+        return BlueprintLibraryUiKit.title(text);
     }
 
     static Label label(final Component text, final Horizontal align) {
-        final Label label = new Label();
-        label.setText(text);
-        label.textStyle(style -> style
-                .adaptiveWidth(false)
-                .adaptiveHeight(false)
-                .textWrap(TextWrap.HOVER_ROLL)
-                .textColor(0xFFFFFFFF)
-                .textShadow(false)
-                .fontSize(8)
-                .textAlignHorizontal(align)
-                .textAlignVertical(Vertical.CENTER));
-        return label;
+        return BlueprintLibraryUiKit.label(text, align);
     }
 
     static Button iconButton(final IGuiTexture icon, final Component tooltip) {
-        final Button button = new Button();
-        button.noText();
-        button.addPreIcon(icon);
-        button.style(style -> style.tooltips(tooltip));
-        button.layout(layout -> {
-            layout.width(BUTTON_SIZE);
-            layout.height(BUTTON_SIZE);
-            layout.paddingAll(0);
-            layout.flexShrink(0.0F);
-        });
-        return button;
+        return BlueprintLibraryUiKit.iconButton(icon, tooltip);
     }
 
     static TextField textField(final String id, final String value) {
-        final TextField field = new TextField();
-        field.setId(id);
-        field.setText(value);
-        field.textFieldStyle(style -> style
-                .textColor(0xFFFFFFFF)
-                .cursorColor(0xFFFFFFFF)
-                .textShadow(false)
-                .fontSize(8));
-        field.layout(layout -> {
-            layout.height(STRING_HEIGHT);
-            layout.paddingHorizontal(2);
-        });
-        return field;
+        return BlueprintLibraryUiKit.textField(id, value);
     }
 
     private static boolean localNameExists(final String name) {
@@ -391,7 +324,8 @@ public final class CameraUiRenderer {
                         layout.flexDirection(FlexDirection.COLUMN);
                         layout.flexShrink(0.0F);
                     });
-            final CameraPreviewCanvas preview = new CameraPreviewCanvas(entry, previewView(), previewTextures);
+            final SableBlueprintPreview.View cardView = previewView();
+            final CameraPreviewCanvas preview = new CameraPreviewCanvas(entry, cardView, previewTextures);
             preview.layout(layout -> {
                 layout.width(PREVIEW_SIZE);
                 layout.height(PREVIEW_SIZE);
@@ -408,7 +342,7 @@ public final class CameraUiRenderer {
                     CameraClientSession.requestSelectLocal(entry.name());
                     event.stopPropagation();
                 } else if (event.button == 1) {
-                    details.open(entry);
+                    details.open(entry, cardView);
                     event.stopPropagation();
                 }
             });

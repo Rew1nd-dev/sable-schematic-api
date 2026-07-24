@@ -11,7 +11,6 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.TextArea;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
 import dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreview;
-import dev.rew1nd.sableschematicapi.survival.camera.CameraState;
 import dev.rew1nd.sableschematicapi.survival.camera.client.CameraClientSession;
 import dev.rew1nd.sableschematicapi.tool.client.preview.BlueprintToolLocalPreviewCache;
 import dev.rew1nd.sableschematicapi.tool.client.storage.BlueprintToolLocalFiles;
@@ -73,11 +72,17 @@ final class CameraDetailsDialog extends UIElement {
         close.setOnClick(event -> saveAndClose());
 
         this.canvas = new PreviewCanvas();
-        this.canvas.addClass(CameraUiRenderer.PREVIEW_CLASS);
         this.canvas.layout(layout -> {
-            layout.width(PREVIEW_SIZE);
-            layout.height(PREVIEW_SIZE);
+            layout.widthPercent(100.0F);
+            layout.heightPercent(100.0F);
         });
+        final UIElement previewFrame = new UIElement()
+                .addClass(CameraUiRenderer.PREVIEW_CLASS)
+                .layout(layout -> {
+                    layout.width(PREVIEW_SIZE);
+                    layout.height(PREVIEW_SIZE);
+                })
+                .addChild(this.canvas);
         final Button previous = CameraUiRenderer.iconButton(Icons.LEFT, Component.literal("Previous preview angle"));
         previous.setOnClick(event -> shiftView(-1));
         final Button next = CameraUiRenderer.iconButton(Icons.RIGHT, Component.literal("Next preview angle"));
@@ -94,7 +99,7 @@ final class CameraDetailsDialog extends UIElement {
             layout.height(PREVIEW_SIZE + CameraUiRenderer.BUTTON_SIZE + CameraUiRenderer.GAP);
             layout.flexDirection(FlexDirection.COLUMN);
             layout.gapAll(CameraUiRenderer.GAP);
-        }).addChildren(this.canvas, navigation);
+        }).addChildren(previewFrame, navigation);
 
         this.name = CameraUiRenderer.textField("sable_camera_blueprint_name", "");
         this.author = CameraUiRenderer.textField("sable_camera_blueprint_author", "");
@@ -130,13 +135,13 @@ final class CameraDetailsDialog extends UIElement {
         hide();
     }
 
-    void open(final BlueprintToolLocalFiles.Entry entry) {
+    void open(final BlueprintToolLocalFiles.Entry entry, final SableBlueprintPreview.View view) {
         if (this.entry != null && !this.entry.equals(entry)) {
             saveDraft(false);
         }
         this.entry = entry;
         this.confirmOverwrite = false;
-        this.view = readView(CameraState.read(player.getMainHandItem()));
+        this.view = view;
         reload();
         setVisible(true);
         setDisplay(true);
@@ -255,14 +260,6 @@ final class CameraDetailsDialog extends UIElement {
         return area;
     }
 
-    private static SableBlueprintPreview.View readView(final CameraState state) {
-        try {
-            return SableBlueprintPreview.View.valueOf(state.previewView());
-        } catch (final IllegalArgumentException ignored) {
-            return SableBlueprintPreview.View.ISO_XP_ZP;
-        }
-    }
-
     private static String[] lines(final String value) {
         return value == null || value.isEmpty() ? new String[]{""} : value.split("\\R", -1);
     }
@@ -274,7 +271,14 @@ final class CameraDetailsDialog extends UIElement {
             final int y = Math.round(getContentY());
             final int width = Math.max(1, Math.round(getContentWidth()));
             final int height = Math.max(1, Math.round(getContentHeight()));
+
+            // ORE backgrounds and vanilla blits use different buffered render types. The
+            // parent frame is overflow-visible, so LDLib does not otherwise flush between
+            // its background and this child; without the boundary the queued frame can be
+            // submitted after the preview and cover it completely.
+            context.graphics.flush();
             previewTextures.draw(context, entry, view, x, y, width, height);
+            context.graphics.flush();
         }
     }
 }

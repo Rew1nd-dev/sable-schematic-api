@@ -1,0 +1,28 @@
+{
+  "variants": {
+    "normal=south,roll=0": { "model": "sable_schematic_api:block/projector_screen_locator" },
+    "normal=south,roll=1": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90 },
+    "normal=south,roll=2": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 180 },
+    "normal=south,roll=3": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270 },
+    "normal=north,roll=0": { "model": "sable_schematic_api:block/projector_screen_locator", "y": 180 },
+    "normal=north,roll=1": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90, "y": 180 },
+    "normal=north,roll=2": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 180, "y": 180 },
+    "normal=north,roll=3": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270, "y": 180 },
+    "normal=east,roll=0": { "model": "sable_schematic_api:block/projector_screen_locator", "y": 270 },
+    "normal=east,roll=1": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90, "y": 270 },
+    "normal=east,roll=2": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 180, "y": 270 },
+    "normal=east,roll=3": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270, "y": 270 },
+    "normal=west,roll=0": { "model": "sable_schematic_api:block/projector_screen_locator", "y": 90 },
+    "normal=west,roll=1": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90, "y": 90 },
+    "normal=west,roll=2": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 180, "y": 90 },
+    "normal=west,roll=3": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270, "y": 90 },
+    "normal=up,roll=0": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270 },
+    "normal=up,roll=1": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270, "y": 90 },
+    "normal=up,roll=2": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270, "y": 180 },
+    "normal=up,roll=3": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 270, "y": 270 },
+    "normal=down,roll=0": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90 },
+    "normal=down,roll=1": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90, "y": 90 },
+    "normal=down,roll=2": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90, "y": 180 },
+    "normal=down,roll=3": { "model": "sable_schematic_api:block/projector_screen_locator", "x": 90, "y": 270 }
+  }
+}

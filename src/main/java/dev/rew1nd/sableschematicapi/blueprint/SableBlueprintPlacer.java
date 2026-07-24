@@ -41,6 +41,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -63,21 +64,24 @@ public final class SableBlueprintPlacer {
         final BlueprintPlaceSession session = new BlueprintPlaceSession(level, placementPlan.origin(), blueprint.globalExtraData(), diagnostics);
         final SubLevelPhysicsSystem physicsSystem = container.physicsSystem();
         final List<PlacedBlock> placedBlocks = new ObjectArrayList<>();
+        final List<ServerSubLevel> allocatedSubLevels = new ArrayList<>();
 
-        session.setPhase(BlueprintPlacePhase.ALLOCATE_SUBLEVELS);
-        for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
-            final Pose3d pose = placementPlan.pose(entry);
-            final ServerSubLevel subLevel = (ServerSubLevel) container.allocateNewSubLevel(pose);
-            final BlockPos placedBlocksOrigin = placedBlocksOrigin(subLevel, entry.localBounds());
+        try {
+            session.setPhase(BlueprintPlacePhase.ALLOCATE_SUBLEVELS);
+            for (final SableBlueprint.SubLevelData entry : blueprint.subLevels()) {
+                final Pose3d pose = placementPlan.pose(entry);
+                final ServerSubLevel subLevel = (ServerSubLevel) container.allocateNewSubLevel(pose);
+                allocatedSubLevels.add(subLevel);
+                final BlockPos placedBlocksOrigin = placedBlocksOrigin(subLevel, entry.localBounds());
 
-            session.mapSubLevel(entry.id(), entry.sourceUuid(), subLevel, placedBlocksOrigin);
+                session.mapSubLevel(entry.id(), entry.sourceUuid(), subLevel, placedBlocksOrigin);
 
-            if (entry.name() != null) {
-                subLevel.setName(entry.name());
+                if (entry.name() != null) {
+                    subLevel.setName(entry.name());
+                }
             }
-        }
 
-        session.setPhase(BlueprintPlacePhase.BUILD_MAPPINGS);
+            session.setPhase(BlueprintPlacePhase.BUILD_MAPPINGS);
 
         session.setPhase(BlueprintPlacePhase.BEFORE_BLOCKS);
         SableBlueprintEventRegistry.placeBeforeBlocks(session);
@@ -154,9 +158,21 @@ public final class SableBlueprintPlacer {
 
         session.setPhase(BlueprintPlacePhase.FINALIZE);
 
-        int placed = finalizePlacement(blueprint, session, container, placedBlocks, placementPlan);
+            int placed = finalizePlacement(blueprint, session, container, placedBlocks, placementPlan);
 
-        return new Result(placed, session.subLevelUuidMap(), session.diagnosticReport());
+            return new Result(placed, session.subLevelUuidMap(), session.diagnosticReport());
+        } catch (final RuntimeException | Error failure) {
+            for (final ServerSubLevel subLevel : allocatedSubLevels) {
+                if (container.getSubLevel(subLevel.getUniqueId()) != null) {
+                    try {
+                        container.removeSubLevel(subLevel, SubLevelRemovalReason.REMOVED);
+                    } catch (final RuntimeException cleanupFailure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
+                }
+            }
+            throw failure;
+        }
     }
 
     private static int finalizePlacement(final SableBlueprint blueprint,

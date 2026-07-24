@@ -282,7 +282,7 @@ public final class SableBlueprintIncrementalPlacer {
                 if (progress.isBlockSkipped(entry.id(), block.localPos())) {
                     continue;
                 }
-                final BlueprintBuildBlockPayload payload = payload(blueprint, entry, block);
+                final BlueprintBuildBlockPayload payload = BlueprintBuildPayloads.resolve(blueprint, entry, block);
                 if (!payload.nbtDecision().loadsNbt()) {
                     continue;
                 }
@@ -326,7 +326,7 @@ public final class SableBlueprintIncrementalPlacer {
                         continue;
                     }
                     total = total.merge(BlueprintBlockCostRules.quotePlacement(
-                            payload(blueprint, entry, block), blockCtx));
+                            BlueprintBuildPayloads.resolve(blueprint, entry, block), blockCtx));
                 }
             }
         }
@@ -415,7 +415,7 @@ public final class SableBlueprintIncrementalPlacer {
                     continue;
                 }
 
-                final BlueprintBuildBlockPayload payload = payload(blueprint, entry, block);
+                final BlueprintBuildBlockPayload payload = BlueprintBuildPayloads.resolve(blueprint, entry, block);
                 if (payload.nbtDecision().mode() == BlueprintNbtLoadMode.DENY) {
                     return new BlockPhaseOutcome(BlueprintBuildStepResult.failed("A blueprint block is denied by survival NBT policy."), affected);
                 }
@@ -492,7 +492,7 @@ public final class SableBlueprintIncrementalPlacer {
                         continue;
                     }
 
-                    final BlueprintBuildBlockPayload payload = payload(blueprint, entry, block);
+                    final BlueprintBuildBlockPayload payload = BlueprintBuildPayloads.resolve(blueprint, entry, block);
                     if (payload.nbtDecision().mode() == BlueprintNbtLoadMode.DENY) {
                         throw new IllegalStateException("A blueprint block is denied by survival NBT policy.");
                     }
@@ -589,38 +589,6 @@ public final class SableBlueprintIncrementalPlacer {
             }
         }
         return false;
-    }
-
-    private static BlueprintBuildBlockPayload payload(final SableBlueprint blueprint,
-                                                      final SableBlueprint.SubLevelData entry,
-                                                      final SableBlueprint.BlockData block) {
-        if (block.paletteId() < 0 || block.paletteId() >= entry.blockPalette().size()) {
-            throw new IllegalStateException("Invalid blueprint palette id " + block.paletteId());
-        }
-
-        final BlockState state = entry.blockPalette().get(block.paletteId());
-        final CompoundTag rawTag = rawBlockEntityTag(entry, block);
-        final BlueprintNbtLoadDecision decision = BlueprintNbtPolicies.resolve(blueprint, entry, block, state, rawTag);
-        return new BlueprintBuildBlockPayload(
-                new BlueprintBlockRef(entry.id(), block.localPos()),
-                entry,
-                block,
-                state,
-                rawTag,
-                decision
-        );
-    }
-
-    private static @Nullable CompoundTag rawBlockEntityTag(final SableBlueprint.SubLevelData entry,
-                                                           final SableBlueprint.BlockData block) {
-        if (!block.hasBlockEntityData()) {
-            return null;
-        }
-        if (block.blockEntityDataId() < 0 || block.blockEntityDataId() >= entry.blockEntities().size()) {
-            return null;
-        }
-
-        return entry.blockEntities().get(block.blockEntityDataId()).copy();
     }
 
     private static ServerSubLevel ensureAllocated(final ServerSubLevelContainer container,

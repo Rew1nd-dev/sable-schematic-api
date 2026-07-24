@@ -471,24 +471,15 @@ public final class BlueprintCannonUiRenderer {
     }
 
     private static IGuiTexture panelBackground() {
-        return SDFRectTexture.of(ROOT_COLOR)
-                .setBorderColor(BORDER_COLOR)
-                .setRadius(2)
-                .setStroke(1);
+        return SurvivalMachineUiKit.panelBackground();
     }
 
     private static IGuiTexture displayBackground() {
-        return SDFRectTexture.of(PANEL_COLOR)
-                .setBorderColor(BORDER_COLOR)
-                .setRadius(2)
-                .setStroke(1);
+        return SurvivalMachineUiKit.displayBackground();
     }
 
     private static IGuiTexture buttonTexture(final int fill, final int border) {
-        return SDFRectTexture.of(fill)
-                .setBorderColor(border)
-                .setRadius(2)
-                .setStroke(1);
+        return SurvivalMachineUiKit.buttonTexture(fill, border);
     }
 
     private static final class RefreshableBudgetList extends ScrollerView {
