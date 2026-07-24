@@ -95,15 +95,20 @@ public record ProjectorScreen(ProjectorAttachment locator,
     }
 
     public Frame frame(final ServerLevel level) {
-        Vector3d z = this.locator.worldDirection(level, direction(this.locatorAxis));
-        Vector3d y = Math.abs(z.y) < 0.999D ? new Vector3d(0, 1, 0) : new Vector3d(0, 0, -1);
-        Vector3d x = new Vector3d(y).cross(z).normalize();
-        y = new Vector3d(z).cross(x).normalize();
+        final Vector3d localZ = direction(this.locatorAxis);
+        Vector3d localY = Math.abs(localZ.y) < 0.999D
+                ? new Vector3d(0, 1, 0)
+                : new Vector3d(0, 0, -1);
+        Vector3d localX = new Vector3d(localY).cross(localZ).normalize();
+        localY = new Vector3d(localZ).cross(localX).normalize();
         for (int i = 0; i < this.roll; i++) {
-            final Vector3d oldX = x;
-            x = new Vector3d(y);
-            y = new Vector3d(oldX).negate();
+            final Vector3d oldX = localX;
+            localX = new Vector3d(localY);
+            localY = new Vector3d(oldX).negate();
         }
+        final Vector3d x = this.locator.worldDirection(level, localX);
+        final Vector3d y = this.locator.worldDirection(level, localY);
+        final Vector3d z = this.locator.worldDirection(level, localZ);
         final Vector3d center = this.locator.worldPosition(level);
         final Vector3d localHitNormal = direction(this.hitFace);
         final Vector3d normal = this.locator.worldDirection(level, localHitNormal);

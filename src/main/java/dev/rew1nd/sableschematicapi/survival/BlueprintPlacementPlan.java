@@ -317,8 +317,9 @@ public final class BlueprintPlacementPlan {
     private static void includeLocalBounds(final BoundsBuilder builder,
                                            final SableBlueprint.SubLevelData entry,
                                            final SableBlueprint.SubLevelData basis) {
-        final BoundingBox3i bounds = entry.localBounds();
-        if (bounds == BoundingBox3i.EMPTY || bounds.volume() <= 0) {
+        final BoundingBox3d bounds = entry.anchorBounds();
+        final BoundingBox3i localBounds = entry.localBounds();
+        if (localBounds == BoundingBox3i.EMPTY || localBounds.volume() <= 0) {
             final Vector3d point = new Vector3d();
             entry.relativePose().transformPosition(point);
             basis.relativePose().transformPositionInverse(point);
@@ -326,9 +327,9 @@ public final class BlueprintPlacementPlan {
             return;
         }
 
-        final double[] xs = new double[]{bounds.minX(), bounds.maxX() + 1.0};
-        final double[] ys = new double[]{bounds.minY(), bounds.maxY() + 1.0};
-        final double[] zs = new double[]{bounds.minZ(), bounds.maxZ() + 1.0};
+        final double[] xs = new double[]{bounds.minX(), bounds.maxX()};
+        final double[] ys = new double[]{bounds.minY(), bounds.maxY()};
+        final double[] zs = new double[]{bounds.minZ(), bounds.maxZ()};
         for (final double x : xs) {
             for (final double y : ys) {
                 for (final double z : zs) {
@@ -342,15 +343,16 @@ public final class BlueprintPlacementPlan {
     }
 
     private static Vector3d localAabbCenter(final SableBlueprint.SubLevelData entry) {
-        final BoundingBox3i bounds = entry.localBounds();
-        if (bounds == BoundingBox3i.EMPTY || bounds.volume() <= 0) {
+        final BoundingBox3d bounds = entry.anchorBounds();
+        final BoundingBox3i localBounds = entry.localBounds();
+        if (localBounds == BoundingBox3i.EMPTY || localBounds.volume() <= 0) {
             return new Vector3d();
         }
 
         return new Vector3d(
-                (bounds.minX() + bounds.maxX() + 1.0) * 0.5,
-                (bounds.minY() + bounds.maxY() + 1.0) * 0.5,
-                (bounds.minZ() + bounds.maxZ() + 1.0) * 0.5
+                (bounds.minX() + bounds.maxX()) * 0.5,
+                (bounds.minY() + bounds.maxY()) * 0.5,
+                (bounds.minZ() + bounds.maxZ()) * 0.5
         );
     }
 

@@ -143,7 +143,8 @@ public final class ProjectorAdmission implements AutoCloseable {
         if (!insideCone(level, projector, projectorPos, sweepStart, sweepEnd)) {
             throw new ProjectorAdmissionException("sable_schematic_api.projector.status.outside_cone");
         }
-        ProjectorObbAdmission.check(level, blueprint, plan);
+        ProjectorObbAdmission.check(
+                level, blueprint, plan, screen.locator().bodyId().orElse(null));
 
         final List<Cursor> cursors = new ArrayList<>();
         long total = 0;
@@ -156,7 +157,8 @@ public final class ProjectorAdmission implements AutoCloseable {
                     * (bounds.maxY() - bounds.minY() + 1)
                     * (bounds.maxZ() - bounds.minZ() + 1);
             total = Math.addExact(total, volume);
-            cursors.add(new Cursor(entry, bounds));
+            cursors.add(new Cursor(
+                    entry, bounds, ProjectorBodyGeometry.anchorBounds(level, entry)));
         }
         final ProjectorTicketLease lease = new ProjectorTicketLease(level);
         try {
@@ -391,21 +393,29 @@ public final class ProjectorAdmission implements AutoCloseable {
     private static final class Cursor {
         private final SableBlueprint.SubLevelData entry;
         private final BoundingBox3i bounds;
+        private final BoundingBox3d anchorBounds;
         private int x;
         private int y;
         private int z;
         private boolean done;
 
-        private Cursor(final SableBlueprint.SubLevelData entry, final BoundingBox3i bounds) {
+        private Cursor(final SableBlueprint.SubLevelData entry,
+                       final BoundingBox3i bounds,
+                       final BoundingBox3d anchorBounds) {
             this.entry = entry;
             this.bounds = bounds;
+            this.anchorBounds = new BoundingBox3d(anchorBounds);
             this.x = bounds.minX();
             this.y = bounds.minY();
             this.z = bounds.minZ();
         }
 
         private Vector3d nextWorldPoint(final BlueprintPlacementPlan plan) {
-            final Vector3d point = new Vector3d(this.x + 0.5D, this.y + 0.5D, this.z + 0.5D);
+            final Vector3d point = new Vector3d(
+                    this.anchorBounds.minX() + (this.x - this.bounds.minX()) + 0.5D,
+                    this.anchorBounds.minY() + (this.y - this.bounds.minY()) + 0.5D,
+                    this.anchorBounds.minZ() + (this.z - this.bounds.minZ()) + 0.5D
+            );
             plan.pose(this.entry).transformPosition(point);
             this.advance();
             return point;

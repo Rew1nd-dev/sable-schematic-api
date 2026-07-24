@@ -376,6 +376,7 @@ public class SableBlueprint {
                                UUID sourceUuid,
                                Pose3d relativePose,
                                BoundingBox3i localBounds,
+                               BoundingBox3d anchorBounds,
                                BlockPos blocksOrigin,
                                List<BlockState> blockPalette,
                                List<Tag> rawBlockPalette,
@@ -385,6 +386,36 @@ public class SableBlueprint {
                                List<EntityData> entities,
                                CompoundTag extraData,
                                @Nullable String name) {
+        public SubLevelData(final int id,
+                            final UUID sourceUuid,
+                            final Pose3d relativePose,
+                            final BoundingBox3i localBounds,
+                            final BoundingBox3d anchorBounds,
+                            final BlockPos blocksOrigin,
+                            final List<BlockState> blockPalette,
+                            final List<BlockData> blocks,
+                            final List<CompoundTag> blockEntities,
+                            final List<EntityData> entities,
+                            final CompoundTag extraData,
+                            @Nullable final String name) {
+            this(
+                    id,
+                    sourceUuid,
+                    relativePose,
+                    localBounds,
+                    anchorBounds,
+                    blocksOrigin,
+                    blockPalette,
+                    encodePaletteTags(blockPalette),
+                    Set.of(),
+                    blocks,
+                    blockEntities,
+                    entities,
+                    extraData,
+                    name
+            );
+        }
+
         public SubLevelData(final int id,
                             final UUID sourceUuid,
                             final Pose3d relativePose,
@@ -401,10 +432,9 @@ public class SableBlueprint {
                     sourceUuid,
                     relativePose,
                     localBounds,
+                    centeredAnchorBounds(localBounds),
                     blocksOrigin,
                     blockPalette,
-                    encodePaletteTags(blockPalette),
-                    Set.of(),
                     blocks,
                     blockEntities,
                     entities,
@@ -416,6 +446,7 @@ public class SableBlueprint {
         public SubLevelData {
             relativePose = new Pose3d(relativePose);
             localBounds = new BoundingBox3i(localBounds);
+            anchorBounds = new BoundingBox3d(anchorBounds);
             blocksOrigin = blocksOrigin.immutable();
             blockPalette = List.copyOf(blockPalette);
             rawBlockPalette = normalizeRawBlockPalette(blockPalette, rawBlockPalette);
@@ -443,6 +474,7 @@ public class SableBlueprint {
             tag.putUUID("source_uuid", this.sourceUuid);
             tag.put("relative_pose", SableNBTUtils.writePose3d(this.relativePose));
             tag.put("local_bounds", writeBoundingBox(this.localBounds));
+            tag.put("anchor_bounds", SableNBTUtils.writeBoundingBox(this.anchorBounds));
             tag.put("blocks_origin", writeBlockPos(this.blocksOrigin));
 
             for (int i = 0; i < this.blockPalette.size(); i++) {
@@ -537,11 +569,16 @@ public class SableBlueprint {
             }
 
             final String name = tag.contains("name", Tag.TAG_STRING) ? tag.getString("name") : null;
+            final BoundingBox3i localBounds = readBoundingBox(tag.getCompound("local_bounds"));
+            final BoundingBox3d anchorBounds = tag.contains("anchor_bounds", Tag.TAG_COMPOUND)
+                    ? SableNBTUtils.readBoundingBox(tag.getCompound("anchor_bounds"))
+                    : centeredAnchorBounds(localBounds);
             return new SubLevelData(
                     id,
                     tag.getUUID("source_uuid"),
                     SableNBTUtils.readPose3d(tag.getCompound("relative_pose")),
-                    readBoundingBox(tag.getCompound("local_bounds")),
+                    localBounds,
+                    anchorBounds,
                     readBlockPos(tag.getCompound("blocks_origin")),
                     blockPalette,
                     rawBlockPalette,
@@ -551,6 +588,23 @@ public class SableBlueprint {
                     entities,
                     tag.getCompound("extra_data"),
                     name
+            );
+        }
+
+        private static BoundingBox3d centeredAnchorBounds(final BoundingBox3i bounds) {
+            if (bounds == BoundingBox3i.EMPTY || bounds.volume() <= 0) {
+                return BoundingBox3d.EMPTY;
+            }
+            final double width = bounds.maxX() - bounds.minX() + 1.0D;
+            final double height = bounds.maxY() - bounds.minY() + 1.0D;
+            final double depth = bounds.maxZ() - bounds.minZ() + 1.0D;
+            return new BoundingBox3d(
+                    -width * 0.5D,
+                    -height * 0.5D,
+                    -depth * 0.5D,
+                    width * 0.5D,
+                    height * 0.5D,
+                    depth * 0.5D
             );
         }
     }

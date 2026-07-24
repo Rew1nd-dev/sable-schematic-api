@@ -240,6 +240,7 @@ public final class SableBlueprintExporter {
                 frame.sourceUuid(),
                 portableRelativePose(frame.subLevel(), frame.sourcePose(), origin),
                 localBounds,
+                portableAnchorBounds(frame),
                 BlockPos.ZERO,
                 blockPalette,
                 blocks,
@@ -337,6 +338,7 @@ public final class SableBlueprintExporter {
                 entry.sourceUuid(),
                 entry.relativePose(),
                 entry.localBounds(),
+                entry.anchorBounds(),
                 entry.blocksOrigin(),
                 entry.blockPalette(),
                 entry.blocks(),
@@ -426,6 +428,28 @@ public final class SableBlueprintExporter {
         final Pose3d relativePose = portableAnchorPose(subLevel, sourcePose);
         relativePose.position().sub(origin.x(), origin.y(), origin.z());
         return relativePose;
+    }
+
+    private static BoundingBox3d portableAnchorBounds(final SubLevelSaveFrame frame) {
+        final BoundingBox3i bounds = frame.storageBounds();
+        if (bounds == BoundingBox3i.EMPTY || bounds.volume() <= 0) {
+            return BoundingBox3d.EMPTY;
+        }
+        final Pose3d anchorPose = portableAnchorPose(frame.subLevel(), frame.sourcePose());
+        final BoundsBuilder builder = new BoundsBuilder();
+        final double[] xs = {bounds.minX(), bounds.maxX() + 1.0D};
+        final double[] ys = {bounds.minY(), bounds.maxY() + 1.0D};
+        final double[] zs = {bounds.minZ(), bounds.maxZ() + 1.0D};
+        for (final double x : xs) {
+            for (final double y : ys) {
+                for (final double z : zs) {
+                    final Vector3d point = frame.sourcePose().transformPosition(new Vector3d(x, y, z));
+                    anchorPose.transformPositionInverse(point);
+                    builder.include(point);
+                }
+            }
+        }
+        return builder.build();
     }
 
     private static Pose3d portableAnchorPose(final ServerSubLevel subLevel, final Pose3d sourcePose) {

@@ -4,7 +4,7 @@ import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
 import dev.rew1nd.sableschematicapi.survival.BlueprintPlacementPlan;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
-import dev.ryanhcode.sable.companion.math.BoundingBox3dc;
+import dev.ryanhcode.sable.companion.math.BoundingBox3d;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
 import dev.ryanhcode.sable.companion.math.Pose3dc;
@@ -14,6 +14,7 @@ import org.joml.Vector3d;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /** Loaded-body broad phase plus 15-axis OBB SAT. */
 public final class ProjectorObbAdmission {
@@ -24,13 +25,17 @@ public final class ProjectorObbAdmission {
 
     public static void check(final ServerLevel level,
                              final SableBlueprint blueprint,
-                             final BlueprintPlacementPlan plan) throws ProjectorAdmissionException {
+                             final BlueprintPlacementPlan plan,
+                             final UUID ignoredBodyId) throws ProjectorAdmissionException {
         final ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             throw new ProjectorAdmissionException("sable_schematic_api.projector.status.no_container");
         }
         final List<Obb> existing = new ArrayList<>();
         for (final ServerSubLevel subLevel : container.getAllSubLevels()) {
+            if (subLevel.getUniqueId().equals(ignoredBodyId)) {
+                continue;
+            }
             final BoundingBox3ic bounds = subLevel.getPlot().getBoundingBox();
             if (bounds == BoundingBox3i.EMPTY || bounds.volume() <= 0) {
                 continue;
@@ -44,8 +49,10 @@ public final class ProjectorObbAdmission {
             if (bounds == BoundingBox3i.EMPTY || bounds.volume() <= 0) {
                 continue;
             }
-            final Obb candidate = Obb.of(bounds.minX(), bounds.minY(), bounds.minZ(),
-                    bounds.maxX() + 1.0D, bounds.maxY() + 1.0D, bounds.maxZ() + 1.0D,
+            final BoundingBox3d anchorBounds = ProjectorBodyGeometry.anchorBounds(level, entry);
+            final Obb candidate = Obb.of(
+                    anchorBounds.minX(), anchorBounds.minY(), anchorBounds.minZ(),
+                    anchorBounds.maxX(), anchorBounds.maxY(), anchorBounds.maxZ(),
                     plan.pose(entry));
             for (final Obb body : existing) {
                 if (candidate.aabbIntersects(body) && candidate.penetrates(body)) {

@@ -44,7 +44,12 @@ public final class ProjectorPlacementHandle {
         if (!admission.validForPlacement(level, projectorPos)) {
             throw new ProjectorAdmissionException("sable_schematic_api.projector.status.anchor_moved");
         }
-        ProjectorObbAdmission.check(level, admission.blueprint(), admission.plan());
+        ProjectorObbAdmission.check(
+                level,
+                admission.blueprint(),
+                admission.plan(),
+                admission.screen().locator().bodyId().orElse(null)
+        );
         final ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             throw new ProjectorAdmissionException("sable_schematic_api.projector.status.no_container");
