@@ -2,9 +2,9 @@
 	"format_version": "1.9.0",
 	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "sable_schematic_api:item/glue_gun/texture",
-		"1": "sable_schematic_api:item/glue_gun/texture.png.mcmeta",
-		"particle": "sable_schematic_api:item/glue_gun/texture"
+		"0": "sable_schematic_api:item/honey_welder/texture",
+		"1": "sable_schematic_api:item/honey_welder/animated",
+		"particle": "sable_schematic_api:item/honey_welder/texture"
 	},
 	"elements": [
 		{
@@ -202,8 +202,8 @@
 		},
 		"gui": {
 			"rotation": [30, -135, 0],
-			"translation": [0, 3.25, 0],
-			"scale": [0.625, 0.625, 0.625]
+			"translation": [-0.5, 2.25, 0],
+			"scale": [0.5, 0.5, 0.5]
 		},
 		"head": {
 			"translation": [0, 8.25, 9]

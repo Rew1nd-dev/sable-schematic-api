@@ -6,6 +6,11 @@ import dev.rew1nd.sableschematicapi.survival.manuscript.ManuscriptServerSessions
 import dev.rew1nd.sableschematicapi.survival.manuscript.client.ManuscriptClientSession;
 import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterBlockEntity;
 import dev.rew1nd.sableschematicapi.client.frontier.ProjectorFrontierClientGroups;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderServerSessions;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.client.HoneyWelderClientSession;
+import dev.rew1nd.sableschematicapi.api.honeywelder.HoneyWelderCancelReason;
+import dev.rew1nd.sableschematicapi.survival.physicsmanager.PhysicsManagerServerActions;
+import dev.rew1nd.sableschematicapi.survival.physicsmanager.client.PhysicsManagerClientSession;
 import dev.rew1nd.sableschematicapi.tool.client.sublevel.BlueprintToolServerSubLevelAction;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
@@ -85,6 +90,7 @@ public final class SableSchematicApiPackets {
 
     private static void registerPayloads(final RegisterPayloadHandlersEvent event) {
         BlueprintToolServerActions.registerDefaults();
+        PhysicsManagerServerActions.register();
         final PayloadRegistrar registrar = event.registrar("1");
         registrar.playToServer(BlueprintToolActionPayload.TYPE, BlueprintToolActionPayload.STREAM_CODEC, SableSchematicApiPackets::handleActionRequest);
         registrar.playToClient(BlueprintToolSaveResultPayload.TYPE, BlueprintToolSaveResultPayload.STREAM_CODEC, SableSchematicApiPackets::handleSaveResult);
@@ -97,6 +103,10 @@ public final class SableSchematicApiPackets {
         registrar.playToServer(FilmPrinterBudgetCheckPayload.TYPE, FilmPrinterBudgetCheckPayload.STREAM_CODEC, SableSchematicApiPackets::handleFilmPrinterBudgetCheck);
         registrar.playToClient(FilmPrinterBudgetSnapshotPayload.TYPE, FilmPrinterBudgetSnapshotPayload.STREAM_CODEC, SableSchematicApiPackets::handleFilmPrinterBudgetSnapshot);
         registrar.playToClient(ProjectorRevealPayload.TYPE, ProjectorRevealPayload.STREAM_CODEC, SableSchematicApiPackets::handleProjectorReveal);
+        registrar.playToServer(HoneyWelderControlPayload.TYPE, HoneyWelderControlPayload.STREAM_CODEC, SableSchematicApiPackets::handleHoneyWelderControl);
+        registrar.playToClient(HoneyWelderSessionPayload.TYPE, HoneyWelderSessionPayload.STREAM_CODEC, SableSchematicApiPackets::handleHoneyWelderSession);
+        registrar.playToServer(PhysicsManagerActionPayload.TYPE, PhysicsManagerActionPayload.STREAM_CODEC, SableSchematicApiPackets::handlePhysicsManagerAction);
+        registrar.playToClient(PhysicsManagerSnapshotPayload.TYPE, PhysicsManagerSnapshotPayload.STREAM_CODEC, SableSchematicApiPackets::handlePhysicsManagerSnapshot);
     }
 
     private static void handleActionRequest(final BlueprintToolActionPayload payload, final IPayloadContext context) {
@@ -184,6 +194,35 @@ public final class SableSchematicApiPackets {
     private static void handleProjectorReveal(final ProjectorRevealPayload payload,
                                               final IPayloadContext context) {
         ProjectorFrontierClientGroups.handle(payload);
+    }
+
+    private static void handleHoneyWelderControl(final HoneyWelderControlPayload payload,
+                                                 final IPayloadContext context) {
+        if (!(context.player() instanceof final ServerPlayer player)) {
+            return;
+        }
+        switch (payload.command()) {
+            case SELECT_CONSUMER -> HoneyWelderServerSessions.selectConsumer(player, payload.value());
+            case START -> HoneyWelderServerSessions.start(player, payload.value());
+            case CANCEL -> HoneyWelderServerSessions.cancel(player, HoneyWelderCancelReason.USER);
+        }
+    }
+
+    private static void handleHoneyWelderSession(final HoneyWelderSessionPayload payload,
+                                                 final IPayloadContext context) {
+        HoneyWelderClientSession.handle(payload);
+    }
+
+    private static void handlePhysicsManagerAction(final PhysicsManagerActionPayload payload,
+                                                   final IPayloadContext context) {
+        if (context.player() instanceof final ServerPlayer player) {
+            PhysicsManagerServerActions.handle(payload.action(), player, payload.data());
+        }
+    }
+
+    private static void handlePhysicsManagerSnapshot(final PhysicsManagerSnapshotPayload payload,
+                                                     final IPayloadContext context) {
+        PhysicsManagerClientSession.handleSnapshot(payload);
     }
 
     public static void sendFilmPrinterBudgetCheck(final FilmPrinterBlockEntity printer,

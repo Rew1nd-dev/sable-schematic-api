@@ -9,7 +9,10 @@ import dev.rew1nd.sableschematicapi.survival.film.FilmItem;
 import dev.rew1nd.sableschematicapi.survival.film.FilmState;
 import dev.rew1nd.sableschematicapi.survival.manuscript.BlueprintManuscriptItem;
 import dev.rew1nd.sableschematicapi.survival.manuscript.BlueprintManuscriptState;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderItem;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderState;
 import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterItem;
+import dev.rew1nd.sableschematicapi.survival.physicsmanager.PhysicsManagerItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -33,6 +36,18 @@ public final class SableSchematicApiItems {
     public static final DeferredHolder<Item, CameraItem> CAMERA = ITEMS.register(
             "camera",
             () -> new CameraItem(new Item.Properties().stacksTo(1))
+    );
+
+    public static final DeferredHolder<Item, PhysicsManagerItem> PHYSICS_MANAGER = ITEMS.register(
+            "physics_manager",
+            () -> new PhysicsManagerItem(new Item.Properties().stacksTo(1))
+    );
+
+    public static final DeferredHolder<Item, HoneyWelderItem> HONEY_WELDER = ITEMS.register(
+            "honey_welder",
+            () -> new HoneyWelderItem(new Item.Properties()
+                    .stacksTo(1)
+                    .component(SableSchematicApiDataComponents.HONEY_WELDER_STATE.get(), HoneyWelderState.EMPTY))
     );
 
     public static final DeferredHolder<Item, BlueprintManuscriptItem> BLUEPRINT_MANUSCRIPT = ITEMS.register(
@@ -70,6 +85,11 @@ public final class SableSchematicApiItems {
     public static final DeferredHolder<Item, BlockItem> PROJECTOR = ITEMS.register(
             "projector",
             () -> new BlockItem(SableSchematicApiBlocks.PROJECTOR.get(), new Item.Properties())
+    );
+
+    public static final DeferredHolder<Item, BlockItem> PROJECTOR_BASE = ITEMS.register(
+            "projector_base",
+            () -> new BlockItem(SableSchematicApiBlocks.PROJECTOR_BASE.get(), new Item.Properties())
     );
 
     public static final DeferredHolder<Item, BlockItem> PROJECTOR_SCREEN = ITEMS.register(

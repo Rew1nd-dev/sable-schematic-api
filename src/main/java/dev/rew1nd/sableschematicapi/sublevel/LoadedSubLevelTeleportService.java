@@ -65,6 +65,25 @@ public final class LoadedSubLevelTeleportService {
                                                                   final Collection<UUID> targetIds,
                                                                   final UUID anchorId,
                                                                   final Vec3 destination) {
+        return teleportSubLevelGroupTo(player.serverLevel(), targetIds, anchorId, destination, true);
+    }
+
+    /**
+     * Moves exactly the admitted member snapshot. This overload deliberately has no player
+     * dependency so an accepted manager task can finish after its initiator disconnects.
+     */
+    public static SubLevelOperationResult teleportSubLevelGroupTo(final ServerLevel level,
+                                                                  final Collection<UUID> targetIds,
+                                                                  final UUID anchorId,
+                                                                  final Vec3 destination) {
+        return teleportSubLevelGroupTo(level, targetIds, anchorId, destination, false);
+    }
+
+    private static SubLevelOperationResult teleportSubLevelGroupTo(final ServerLevel level,
+                                                                   final Collection<UUID> targetIds,
+                                                                   final UUID anchorId,
+                                                                   final Vec3 destination,
+                                                                   final boolean includeConnected) {
         if (targetIds == null || targetIds.isEmpty()) {
             return SubLevelOperationResult.failure("No sub-level group members were selected.");
         }
@@ -73,7 +92,6 @@ public final class LoadedSubLevelTeleportService {
             return SubLevelOperationResult.failure("No sub-level group anchor was selected.");
         }
 
-        final ServerLevel level = player.serverLevel();
         final ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             return SubLevelOperationResult.failure("No Sable sub-level container is available for this level.");
@@ -93,16 +111,18 @@ public final class LoadedSubLevelTeleportService {
             members.put(targetId, serverSubLevel);
         }
 
-        for (final SubLevel connected : SubLevelHelper.getConnectedChain(anchorSubLevel)) {
-            if (connected instanceof final ServerSubLevel serverSubLevel && !serverSubLevel.isRemoved()) {
-                members.putIfAbsent(serverSubLevel.getUniqueId(), serverSubLevel);
+        if (includeConnected) {
+            for (final SubLevel connected : SubLevelHelper.getConnectedChain(anchorSubLevel)) {
+                if (connected instanceof final ServerSubLevel serverSubLevel && !serverSubLevel.isRemoved()) {
+                    members.putIfAbsent(serverSubLevel.getUniqueId(), serverSubLevel);
+                }
             }
         }
 
-        return teleportLoadedGroup(player, members.values(), anchorSubLevel, destination);
+        return teleportLoadedGroup(level, members.values(), anchorSubLevel, destination);
     }
 
-    private static SubLevelOperationResult teleportLoadedGroup(final ServerPlayer player,
+    private static SubLevelOperationResult teleportLoadedGroup(final ServerLevel level,
                                                                final Collection<ServerSubLevel> targets,
                                                                final ServerSubLevel anchor,
                                                                final Vec3 destination) {
@@ -110,7 +130,7 @@ public final class LoadedSubLevelTeleportService {
             return SubLevelOperationResult.failure("No loaded sub-level group members were found.");
         }
 
-        if (!anchor.getLevel().dimension().equals(player.serverLevel().dimension())) {
+        if (!anchor.getLevel().dimension().equals(level.dimension())) {
             return SubLevelOperationResult.failure("Bringing sub-levels across dimensions is not supported yet.");
         }
 
@@ -118,7 +138,7 @@ public final class LoadedSubLevelTeleportService {
             if (target.isRemoved()) {
                 return SubLevelOperationResult.failure("A target sub-level has already been removed.");
             }
-            if (!target.getLevel().dimension().equals(player.serverLevel().dimension())) {
+            if (!target.getLevel().dimension().equals(level.dimension())) {
                 return SubLevelOperationResult.failure("Bringing sub-levels across dimensions is not supported yet.");
             }
         }

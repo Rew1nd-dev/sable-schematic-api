@@ -5,6 +5,7 @@ import dev.rew1nd.sableschematicapi.survival.film.FilmState;
 import dev.rew1nd.sableschematicapi.survival.manuscript.BlueprintManuscriptState;
 import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterItemSummary;
 import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterPortableState;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderState;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -48,6 +49,15 @@ public final class SableSchematicApiDataComponents {
             () -> DataComponentType.<FilmPrinterItemSummary>builder()
                     .persistent(FilmPrinterItemSummary.CODEC)
                     .networkSynchronized(ByteBufCodecs.fromCodec(FilmPrinterItemSummary.CODEC))
+                    .build()
+            );
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<HoneyWelderState>>
+            HONEY_WELDER_STATE = COMPONENTS.register(
+            "honey_welder_state",
+            () -> DataComponentType.<HoneyWelderState>builder()
+                    .persistent(HoneyWelderState.CODEC)
+                    .networkSynchronized(ByteBufCodecs.fromCodec(HoneyWelderState.CODEC))
                     .build()
     );
 

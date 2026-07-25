@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "sable_schematic_api:block/projector_base"
+    }
+  }
+}

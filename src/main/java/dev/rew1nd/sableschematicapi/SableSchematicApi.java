@@ -16,6 +16,8 @@ import dev.rew1nd.sableschematicapi.survival.camera.CameraConfig;
 import dev.rew1nd.sableschematicapi.survival.camera.CameraCaptureService;
 import dev.rew1nd.sableschematicapi.survival.manuscript.ManuscriptServerSessions;
 import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterConfig;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderConfig;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderServerSessions;
 import dev.rew1nd.sableschematicapi.survival.projector.ProjectorConfig;
 import dev.rew1nd.sableschematicapi.survival.projector.ProjectorForceLoadTickets;
 import dev.rew1nd.sableschematicapi.survival.projector.ProjectorTerrainScanScheduler;
@@ -55,6 +57,11 @@ public final class SableSchematicApi {
                 ProjectorConfig.SPEC,
                 "sable-schematic-api-projector.toml"
         );
+        ModLoadingContext.get().getActiveContainer().registerConfig(
+                ModConfig.Type.SERVER,
+                HoneyWelderConfig.SPEC,
+                "sable-schematic-api-honey-welder.toml"
+        );
         SableSchematicApiBlocks.register(modEventBus);
         SableSchematicApiBlockEntities.register(modEventBus);
         SableSchematicApiDataComponents.register(modEventBus);
@@ -63,6 +70,7 @@ public final class SableSchematicApi {
         SableSchematicApiPackets.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(SableBlueprintCommands::register);
         NeoForge.EVENT_BUS.addListener(PendingSubLevelLoadTeleportService::tick);
+        NeoForge.EVENT_BUS.addListener(PendingSubLevelLoadTeleportService::onServerStopped);
         NeoForge.EVENT_BUS.addListener(PendingSubLevelDirectoryRemovalService::tick);
         NeoForge.EVENT_BUS.addListener(PendingSubLevelDirectoryRemovalService::onServerStopped);
         NeoForge.EVENT_BUS.addListener(RuntimeSubLevelStaticService::onServerStopped);
@@ -76,6 +84,7 @@ public final class SableSchematicApi {
         NeoForge.EVENT_BUS.addListener(ProjectorRevealGroups::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(ProjectorRevealGroups::onPlayerChangedDimension);
         NeoForge.EVENT_BUS.addListener(ProjectorRevealGroups::onServerStopped);
+        HoneyWelderServerSessions.register();
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::registerCapabilities);
     }

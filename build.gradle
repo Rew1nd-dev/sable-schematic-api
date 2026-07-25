@@ -230,6 +230,9 @@ configurations {
 dependencies {
     compileOnlyApi("dev.ryanhcode.sable:sable-neoforge-${project.minecraft_version}:${project.sable_version}")
 
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
+
     // Loads Sable itself in NeoForge dev runs without leaking it as a published transitive dependency.
     localRuntime("dev.ryanhcode.sable:sable-neoforge-${project.minecraft_version}:${project.sable_version}")
 
@@ -311,6 +314,10 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
 }
 
 tasks.named('javadoc', Javadoc).configure {

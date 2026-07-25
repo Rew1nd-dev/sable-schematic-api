@@ -9,33 +9,53 @@ import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreviewCompression.compress;
+import static dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreviewCompression.decompress;
+import static dev.rew1nd.sableschematicapi.blueprint.preview.SableBlueprintPreviewCompression.maxCompressedBytes;
+
 public final class SableBlueprintPreview {
-    public static final int VERSION = 2;
+    private static final int LEGACY_VERSION = 2;
+    private static final String ENCODING_ZLIB_ARGB32 = "zlib_argb32";
+    private static final int MAX_RESOLUTION = 1024;
+
+    public static final int VERSION = 3;
     public static final int DEFAULT_RESOLUTION = 512;
 
     private final int resolution;
     private final int basisSubLevelId;
     private final BoundingBox3d boundsInBasis;
-    private final EnumMap<View, int[]> views;
+    private final EnumMap<View, ViewData> views;
 
     public SableBlueprintPreview(final int resolution,
                                  final int basisSubLevelId,
                                  final BoundingBox3d boundsInBasis,
                                  final Map<View, int[]> views) {
+        validateResolution(resolution);
         this.resolution = resolution;
         this.basisSubLevelId = basisSubLevelId;
         this.boundsInBasis = new BoundingBox3d(boundsInBasis);
         this.views = new EnumMap<>(View.class);
 
-        final int expectedPixels = resolution * resolution;
+        final int expectedPixels = expectedPixels(resolution);
         for (final View view : View.values()) {
             final int[] pixels = views.get(view);
             if (pixels == null || pixels.length != expectedPixels) {
-                this.views.put(view, new int[expectedPixels]);
+                this.views.put(view, ViewData.fromPixels(new int[expectedPixels]));
             } else {
-                this.views.put(view, Arrays.copyOf(pixels, pixels.length));
+                this.views.put(view, ViewData.fromPixels(Arrays.copyOf(pixels, pixels.length)));
             }
         }
+    }
+
+    private SableBlueprintPreview(final int resolution,
+                                  final int basisSubLevelId,
+                                  final BoundingBox3d boundsInBasis,
+                                  final EnumMap<View, ViewData> views) {
+        validateResolution(resolution);
+        this.resolution = resolution;
+        this.basisSubLevelId = basisSubLevelId;
+        this.boundsInBasis = new BoundingBox3d(boundsInBasis);
+        this.views = views;
     }
 
     public int resolution() {
@@ -51,7 +71,7 @@ public final class SableBlueprintPreview {
     }
 
     public int[] pixels(final View view) {
-        return this.views.get(view);
+        return this.views.get(view).pixels(expectedPixels(this.resolution));
     }
 
     public CompoundTag save() {
@@ -67,7 +87,8 @@ public final class SableBlueprintPreview {
             final CompoundTag viewTag = new CompoundTag();
             viewTag.putInt("width", this.resolution);
             viewTag.putInt("height", this.resolution);
-            viewTag.putIntArray("pixels", this.views.get(view));
+            viewTag.putString("encoding", ENCODING_ZLIB_ARGB32);
+            viewTag.putByteArray("data", this.views.get(view).compressed(expectedPixels(this.resolution)));
             viewsTag.put(view.id(), viewTag);
         }
 
@@ -77,29 +98,17 @@ public final class SableBlueprintPreview {
 
     public static SableBlueprintPreview load(final CompoundTag tag) {
         final int version = tag.getInt("version");
-        if (version != VERSION) {
+        if (version != LEGACY_VERSION && version != VERSION) {
             throw new IllegalArgumentException("Unsupported Sable blueprint preview version: " + version);
         }
 
         final int resolution = tag.getInt("resolution");
-        if (resolution <= 0) {
-            throw new IllegalArgumentException("Invalid Sable blueprint preview resolution: " + resolution);
-        }
+        validateResolution(resolution);
 
-        final int expectedPixels = resolution * resolution;
         final CompoundTag viewsTag = tag.getCompound("views");
-        final EnumMap<View, int[]> views = new EnumMap<>(View.class);
-        for (final View view : View.values()) {
-            final CompoundTag viewTag = viewsTag.getCompound(view.id());
-            final int width = viewTag.getInt("width");
-            final int height = viewTag.getInt("height");
-            final int[] pixels = viewTag.contains("pixels", Tag.TAG_INT_ARRAY) ? viewTag.getIntArray("pixels") : new int[0];
-            if (width != resolution || height != resolution || pixels.length != expectedPixels) {
-                views.put(view, new int[expectedPixels]);
-            } else {
-                views.put(view, pixels);
-            }
-        }
+        final EnumMap<View, ViewData> views = version == LEGACY_VERSION
+                ? loadLegacyViews(viewsTag, resolution)
+                : loadCompressedViews(viewsTag, resolution);
 
         return new SableBlueprintPreview(
                 resolution,
@@ -107,6 +116,58 @@ public final class SableBlueprintPreview {
                 readBounds(tag.getCompound("bounds_in_basis")),
                 views
         );
+    }
+
+    private static EnumMap<View, ViewData> loadLegacyViews(final CompoundTag viewsTag,
+                                                            final int resolution) {
+        final int expectedPixels = expectedPixels(resolution);
+        final EnumMap<View, ViewData> views = new EnumMap<>(View.class);
+        for (final View view : View.values()) {
+            final CompoundTag viewTag = viewsTag.getCompound(view.id());
+            final int width = viewTag.getInt("width");
+            final int height = viewTag.getInt("height");
+            final int[] pixels = viewTag.contains("pixels", Tag.TAG_INT_ARRAY) ? viewTag.getIntArray("pixels") : new int[0];
+            if (width != resolution || height != resolution || pixels.length != expectedPixels) {
+                views.put(view, ViewData.fromPixels(new int[expectedPixels]));
+            } else {
+                views.put(view, ViewData.fromPixels(pixels));
+            }
+        }
+        return views;
+    }
+
+    private static EnumMap<View, ViewData> loadCompressedViews(final CompoundTag viewsTag,
+                                                               final int resolution) {
+        final int expectedPixels = expectedPixels(resolution);
+        final int maxCompressedBytes = maxCompressedBytes(expectedPixels);
+        final EnumMap<View, ViewData> views = new EnumMap<>(View.class);
+        for (final View view : View.values()) {
+            final CompoundTag viewTag = viewsTag.getCompound(view.id());
+            final int width = viewTag.getInt("width");
+            final int height = viewTag.getInt("height");
+            final String encoding = viewTag.getString("encoding");
+            final byte[] data = viewTag.contains("data", Tag.TAG_BYTE_ARRAY) ? viewTag.getByteArray("data") : new byte[0];
+            if (width != resolution
+                    || height != resolution
+                    || !ENCODING_ZLIB_ARGB32.equals(encoding)
+                    || data.length == 0
+                    || data.length > maxCompressedBytes) {
+                views.put(view, ViewData.fromPixels(new int[expectedPixels]));
+            } else {
+                views.put(view, ViewData.fromCompressed(data));
+            }
+        }
+        return views;
+    }
+
+    private static void validateResolution(final int resolution) {
+        if (resolution <= 0 || resolution > MAX_RESOLUTION) {
+            throw new IllegalArgumentException("Invalid Sable blueprint preview resolution: " + resolution);
+        }
+    }
+
+    private static int expectedPixels(final int resolution) {
+        return Math.multiplyExact(resolution, resolution);
     }
 
     private static CompoundTag writeBounds(final BoundingBox3d bounds) {
@@ -129,6 +190,61 @@ public final class SableBlueprintPreview {
                 tag.getDouble("max_y"),
                 tag.getDouble("max_z")
         );
+    }
+
+    private static final class ViewData {
+        private volatile byte[] compressed;
+        private volatile int[] pixels;
+
+        private ViewData(final byte[] compressed, final int[] pixels) {
+            this.compressed = compressed;
+            this.pixels = pixels;
+        }
+
+        private static ViewData fromPixels(final int[] pixels) {
+            return new ViewData(null, pixels);
+        }
+
+        private static ViewData fromCompressed(final byte[] compressed) {
+            return new ViewData(Arrays.copyOf(compressed, compressed.length), null);
+        }
+
+        private int[] pixels(final int expectedPixels) {
+            int[] result = this.pixels;
+            if (result != null) {
+                return result;
+            }
+
+            synchronized (this) {
+                result = this.pixels;
+                if (result == null) {
+                    try {
+                        result = decompress(this.compressed, expectedPixels);
+                    } catch (final IllegalArgumentException ignored) {
+                        result = new int[expectedPixels];
+                        this.compressed = null;
+                    }
+                    this.pixels = result;
+                }
+            }
+            return result;
+        }
+
+        private byte[] compressed(final int expectedPixels) {
+            byte[] result = this.compressed;
+            if (result != null) {
+                return Arrays.copyOf(result, result.length);
+            }
+
+            synchronized (this) {
+                result = this.compressed;
+                if (result == null) {
+                    result = compress(this.pixels(expectedPixels));
+                    this.compressed = result;
+                }
+            }
+            return Arrays.copyOf(result, result.length);
+        }
     }
 
     public enum View {

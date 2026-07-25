@@ -56,6 +56,16 @@ public final class SableSchematicApiBlocks {
                     .isViewBlocking((s, r, p) -> false))
     );
 
+    public static final DeferredHolder<Block, Block> PROJECTOR_BASE = BLOCKS.register(
+            "projector_base",
+            () -> new Block(BlockBehaviour.Properties.of()
+                    .sound(SoundType.METAL)
+                    .strength(3.5F)
+                    .noOcclusion()
+                    .isRedstoneConductor((s, r, p) -> false)
+                    .isViewBlocking((s, r, p) -> false))
+    );
+
     public static final DeferredHolder<Block, Block> PROJECTOR_SCREEN = BLOCKS.register(
             "projector_screen",
             () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.GRAY_CONCRETE))

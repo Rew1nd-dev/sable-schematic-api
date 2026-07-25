@@ -57,9 +57,11 @@ public final class CameraBodyOutlineRenderer {
     private static final ResourceLocation OUTLINE_MASK = SableSchematicApi.id("camera_body_outline_mask");
     private static final int CANDIDATE_COLOR = 0xFFE7B64D;
     private static final int CACHED_COLOR = 0xFF4CC9F0;
+    private static final int MANAGER_COLOR = 0xFF00FF00;
     private static final boolean CREATE_LOADED = ModList.get().isLoaded("create");
     private static Set<UUID> candidateIds = Set.of();
     private static Set<UUID> cachedIds = Set.of();
+    private static Set<UUID> managerIds = Set.of();
     private static boolean registered;
 
     private CameraBodyOutlineRenderer() {
@@ -75,9 +77,19 @@ public final class CameraBodyOutlineRenderer {
     public static void update(final Set<UUID> candidates, final Set<UUID> cached) {
         candidateIds = candidates == null ? Set.of() : Set.copyOf(candidates);
         cachedIds = cached == null ? Set.of() : Set.copyOf(cached);
-        if (candidateIds.isEmpty() && cachedIds.isEmpty()) {
+        if (candidateIds.isEmpty() && cachedIds.isEmpty() && managerIds.isEmpty()) {
             removeScheduledPipeline();
         }
+    }
+
+    public static int updateManager(final Set<UUID> ids) {
+        managerIds = ids == null ? Set.of() : Set.copyOf(ids);
+        final Minecraft minecraft = Minecraft.getInstance();
+        final int resolved = minecraft.level == null ? 0 : resolve(minecraft.level, managerIds).size();
+        if (candidateIds.isEmpty() && cachedIds.isEmpty() && managerIds.isEmpty()) {
+            removeScheduledPipeline();
+        }
+        return resolved;
     }
 
     private static void render(final VeilRenderLevelStageEvent.Stage stage,
@@ -91,7 +103,7 @@ public final class CameraBodyOutlineRenderer {
                                final Camera camera,
                                final Frustum frustum) {
         if (stage != VeilRenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS
-                || (candidateIds.isEmpty() && cachedIds.isEmpty())
+                || (candidateIds.isEmpty() && cachedIds.isEmpty() && managerIds.isEmpty())
                 || camera == null || frustumMatrix == null || projectionMatrix == null) {
             return;
         }
@@ -99,6 +111,7 @@ public final class CameraBodyOutlineRenderer {
         final ClientLevel level = minecraft.level;
         if (level == null) {
             update(Set.of(), Set.of());
+            updateManager(Set.of());
             return;
         }
         final AdvancedFbo mask = VeilRenderSystem.renderer().getFramebufferManager().getFramebuffer(OUTLINE_MASK);
@@ -109,7 +122,8 @@ public final class CameraBodyOutlineRenderer {
 
         final List<ClientSubLevel> candidates = resolve(level, candidateIds);
         final List<ClientSubLevel> cached = resolve(level, cachedIds);
-        if (candidates.isEmpty() && cached.isEmpty()) {
+        final List<ClientSubLevel> manager = resolve(level, managerIds);
+        if (candidates.isEmpty() && cached.isEmpty() && manager.isEmpty()) {
             return;
         }
 
@@ -119,6 +133,8 @@ public final class CameraBodyOutlineRenderer {
             renderBatch(mask, pipeline, CANDIDATE_COLOR, candidates, minecraft, level, levelRenderer,
                     bufferSource, camera, frustumMatrix, projectionMatrix, deltaTracker);
             renderBatch(mask, pipeline, CACHED_COLOR, cached, minecraft, level, levelRenderer,
+                    bufferSource, camera, frustumMatrix, projectionMatrix, deltaTracker);
+            renderBatch(mask, pipeline, MANAGER_COLOR, manager, minecraft, level, levelRenderer,
                     bufferSource, camera, frustumMatrix, projectionMatrix, deltaTracker);
         } finally {
             bufferSource.endBatch();

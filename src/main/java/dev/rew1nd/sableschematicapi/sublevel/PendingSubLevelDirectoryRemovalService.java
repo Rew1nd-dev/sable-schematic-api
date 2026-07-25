@@ -19,6 +19,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 
 /** Removes a snapshot of directory records without blocking the server while stored entries load. */
 public final class PendingSubLevelDirectoryRemovalService {
@@ -42,6 +44,9 @@ public final class PendingSubLevelDirectoryRemovalService {
     private static final long LOAD_TIMEOUT_TICKS = 400L;
 
     private static RemovalJob activeJob;
+    private static RemovalStatus lastResult = RemovalStatus.idle();
+    private static BiConsumer<MinecraftServer, UUID> progressListener = (server, playerId) -> {
+    };
 
     private PendingSubLevelDirectoryRemovalService() {
     }
@@ -60,8 +65,61 @@ public final class PendingSubLevelDirectoryRemovalService {
             return SubLevelOperationResult.success("No Sable sub-level directory entries were found.", 0);
         }
 
-        activeJob = new RemovalJob(source, List.copyOf(records.values()), records);
+        lastResult = RemovalStatus.idle();
+        activeJob = new RemovalJob(source, null, List.copyOf(records.values()), records);
         return SubLevelOperationResult.success("Queued removal of " + records.size() + " Sable sub-level directory entr" + (records.size() == 1 ? "y." : "ies."), 0);
+    }
+
+    /**
+     * Starts a targeted job while sharing the same global mutex as the directory-wide command.
+     * The supplied records are an immutable admission snapshot; dependencies are still resolved
+     * against a fresh full-directory map so stored targets can be loaded safely.
+     */
+    public static SubLevelOperationResult requestTargetedRemoval(final MinecraftServer server,
+                                                                 final UUID initiator,
+                                                                 final Collection<SubLevelRecord> targets) {
+        if (activeJob != null) {
+            return SubLevelOperationResult.failure("A Sable sub-level directory removal job is already running.");
+        }
+        if (targets == null || targets.isEmpty()) {
+            return SubLevelOperationResult.failure("No Sable sub-level directory entries were selected.");
+        }
+
+        final Map<RecordKey, SubLevelRecord> directory = new LinkedHashMap<>();
+        for (final SubLevelRecord record : SubLevelDirectoryService.listAll(server)) {
+            directory.putIfAbsent(new RecordKey(record.dimension(), record.uuid()), record);
+        }
+
+        final Map<RecordKey, SubLevelRecord> selected = new LinkedHashMap<>();
+        for (final SubLevelRecord target : targets) {
+            final RecordKey key = new RecordKey(target.dimension(), target.uuid());
+            final SubLevelRecord current = directory.get(key);
+            if (current != null) {
+                selected.putIfAbsent(key, current);
+            }
+        }
+        if (selected.isEmpty()) {
+            return SubLevelOperationResult.failure("The selected Sable sub-level entries no longer exist.");
+        }
+
+        lastResult = RemovalStatus.idle();
+        activeJob = new RemovalJob(null, initiator, List.copyOf(selected.values()), directory);
+        publishProgress(server, activeJob, true);
+        return SubLevelOperationResult.success(
+                "Queued removal of " + selected.size() + " selected Sable sub-level entr"
+                        + (selected.size() == 1 ? "y." : "ies."),
+                0
+        );
+    }
+
+    public static RemovalStatus status() {
+        final RemovalJob job = activeJob;
+        return job == null ? lastResult : job.status(true, "");
+    }
+
+    public static void setProgressListener(final BiConsumer<MinecraftServer, UUID> listener) {
+        progressListener = listener == null ? (server, playerId) -> {
+        } : listener;
     }
 
     public static void tick(final ServerTickEvent.Post event) {
@@ -74,12 +132,19 @@ public final class PendingSubLevelDirectoryRemovalService {
             if (tickJob(event.getServer(), job)) {
                 activeJob = null;
                 finish(event.getServer(), job);
+            } else {
+                publishProgress(event.getServer(), job, false);
             }
         } catch (final RuntimeException e) {
             activeJob = null;
             releaseCurrentTickets(event.getServer(), job);
             SableSchematicApi.LOGGER.error("Sable sub-level directory removal job crashed", e);
-            job.source().sendFailure(Component.literal("Sable sub-level directory removal stopped: " + e.getMessage()));
+            final String message = "Sable sub-level directory removal stopped: " + e.getMessage();
+            lastResult = job.status(false, message);
+            if (job.source() != null) {
+                job.source().sendFailure(Component.literal(message));
+            }
+            publishProgress(event.getServer(), job, true);
         }
     }
 
@@ -88,6 +153,7 @@ public final class PendingSubLevelDirectoryRemovalService {
             releaseCurrentTickets(event.getServer(), activeJob);
             activeJob = null;
         }
+        lastResult = RemovalStatus.idle();
     }
 
     private static boolean tickJob(final MinecraftServer server, final RemovalJob job) {
@@ -281,11 +347,35 @@ public final class PendingSubLevelDirectoryRemovalService {
                 + ", unavailable dimensions " + job.unavailableDimensions
                 + ". " + flush.message();
 
-        if (flush.success() && job.loadFailures == 0 && job.failures == 0 && job.unavailableDimensions == 0) {
-            job.source().sendSuccess(() -> Component.literal(message), true);
-        } else {
-            job.source().sendFailure(Component.literal(message));
+        lastResult = job.status(false, message);
+        if (job.source() != null) {
+            if (flush.success() && job.loadFailures == 0 && job.failures == 0 && job.unavailableDimensions == 0) {
+                job.source().sendSuccess(() -> Component.literal(message), true);
+            } else {
+                job.source().sendFailure(Component.literal(message));
+            }
         }
+        SableSchematicApi.LOGGER.info(message);
+        publishProgress(server, job, true);
+    }
+
+    private static void publishProgress(final MinecraftServer server,
+                                        final RemovalJob job,
+                                        final boolean force) {
+        if (job.initiator() == null) {
+            return;
+        }
+        final RemovalStatus current = job.status(true, "");
+        if (!force && !job.progressChangedSincePublish(current)) {
+            return;
+        }
+        final long now = server.overworld().getGameTime();
+        if (!force && now - job.lastPublishedGameTime() < 10L) {
+            return;
+        }
+        job.setLastPublishedGameTime(now);
+        job.markPublished(current);
+        progressListener.accept(server, job.initiator());
     }
 
     private record RecordKey(ResourceKey<Level> dimension, UUID uuid) {
@@ -333,7 +423,10 @@ public final class PendingSubLevelDirectoryRemovalService {
     }
 
     private static final class RemovalJob {
+        @Nullable
         private final CommandSourceStack source;
+        @Nullable
+        private final UUID initiator;
         private final List<SubLevelRecord> records;
         private final Map<RecordKey, SubLevelRecord> recordsByKey;
         private final Set<ResourceKey<Level>> affectedDimensions = new LinkedHashSet<>();
@@ -344,17 +437,31 @@ public final class PendingSubLevelDirectoryRemovalService {
         private int failures;
         private int unavailableDimensions;
         private PendingRecord current;
+        private long lastPublishedGameTime = Long.MIN_VALUE / 2L;
+        private int lastPublishedCompleted = -1;
+        private int lastPublishedRemoved = -1;
+        private int lastPublishedFailures = -1;
+        @Nullable
+        private UUID lastPublishedCurrent;
 
-        private RemovalJob(final CommandSourceStack source,
+        private RemovalJob(@Nullable final CommandSourceStack source,
+                           @Nullable final UUID initiator,
                            final List<SubLevelRecord> records,
                            final Map<RecordKey, SubLevelRecord> recordsByKey) {
             this.source = source;
+            this.initiator = initiator;
             this.records = records;
             this.recordsByKey = recordsByKey;
         }
 
+        @Nullable
         private CommandSourceStack source() {
             return source;
+        }
+
+        @Nullable
+        private UUID initiator() {
+            return initiator;
         }
 
         private List<SubLevelRecord> records() {
@@ -379,6 +486,67 @@ public final class PendingSubLevelDirectoryRemovalService {
 
         private void setCurrent(final PendingRecord current) {
             this.current = current;
+        }
+
+        private long lastPublishedGameTime() {
+            return lastPublishedGameTime;
+        }
+
+        private void setLastPublishedGameTime(final long value) {
+            this.lastPublishedGameTime = value;
+        }
+
+        private boolean progressChangedSincePublish(final RemovalStatus status) {
+            return status.completed() != this.lastPublishedCompleted
+                    || status.removed() != this.lastPublishedRemoved
+                    || status.missing() + status.loadFailures() + status.failures()
+                    + status.unavailableDimensions() != this.lastPublishedFailures
+                    || !java.util.Objects.equals(status.currentId(), this.lastPublishedCurrent);
+        }
+
+        private void markPublished(final RemovalStatus status) {
+            this.lastPublishedCompleted = status.completed();
+            this.lastPublishedRemoved = status.removed();
+            this.lastPublishedFailures = status.missing() + status.loadFailures()
+                    + status.failures() + status.unavailableDimensions();
+            this.lastPublishedCurrent = status.currentId();
+        }
+
+        private RemovalStatus status(final boolean active, final String message) {
+            final int completed = Math.max(0, this.nextIndex - (this.current == null ? 0 : 1));
+            final Set<UUID> targets = new LinkedHashSet<>();
+            for (final SubLevelRecord record : this.records) {
+                targets.add(record.uuid());
+            }
+            return new RemovalStatus(
+                    active,
+                    Set.copyOf(targets),
+                    this.records.size(),
+                    Math.min(this.records.size(), completed),
+                    this.current == null ? null : this.current.record().uuid(),
+                    this.removed,
+                    this.missingEntries,
+                    this.loadFailures,
+                    this.failures,
+                    this.unavailableDimensions,
+                    message == null ? "" : message
+            );
+        }
+    }
+
+    public record RemovalStatus(boolean active,
+                                Set<UUID> targetIds,
+                                int total,
+                                int completed,
+                                @Nullable UUID currentId,
+                                int removed,
+                                int missing,
+                                int loadFailures,
+                                int failures,
+                                int unavailableDimensions,
+                                String message) {
+        private static RemovalStatus idle() {
+            return new RemovalStatus(false, Set.of(), 0, 0, null, 0, 0, 0, 0, 0, "");
         }
     }
 }

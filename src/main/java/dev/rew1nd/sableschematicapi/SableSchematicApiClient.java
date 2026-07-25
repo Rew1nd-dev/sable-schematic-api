@@ -15,6 +15,8 @@ import dev.rew1nd.sableschematicapi.survival.film.FilmItem;
 import dev.rew1nd.sableschematicapi.tool.SableSchematicApiItems;
 import dev.rew1nd.sableschematicapi.tool.client.BlueprintToolClientEvents;
 import dev.rew1nd.sableschematicapi.tool.client.input.BlueprintToolKeyMappings;
+import dev.rew1nd.sableschematicapi.survival.honeywelder.client.HoneyWelderClientEvents;
+import dev.rew1nd.sableschematicapi.survival.physicsmanager.client.PhysicsManagerClientSession;
 import foundry.veil.platform.VeilEventPlatform;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -36,7 +38,9 @@ public final class SableSchematicApiClient {
         VeilEventPlatform.INSTANCE.onVeilAddShaderProcessors((provider, registry) ->
                 registry.addPreprocessor(new SableFrontierShaderPreProcessor(), false));
         BlueprintToolClientEvents.register();
+        HoneyWelderClientEvents.register();
         CameraClientEvents.register();
+        PhysicsManagerClientSession.register();
         BlueprintManuscriptClientAccess.register(ManuscriptClientSession::begin);
         ManuscriptClientSession.register();
         NeoForge.EVENT_BUS.addListener(ManuscriptClientSession::onLoggingOut);

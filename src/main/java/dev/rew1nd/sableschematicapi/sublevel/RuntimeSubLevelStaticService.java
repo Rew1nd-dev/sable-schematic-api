@@ -23,22 +23,20 @@ import java.util.UUID;
 public final class RuntimeSubLevelStaticService {
     private static final String SIMULATED_PHYSICS_STAFF_HANDLER = "dev.simulated_team.simulated.content.physics_staff.PhysicsStaffServerHandler";
     private static final Map<ResourceKey<Level>, Map<UUID, Lock>> LOCKS = new LinkedHashMap<>();
+    private static final Map<ResourceKey<Level>, Map<UUID, Boolean>> PENDING_STATES = new LinkedHashMap<>();
     private static Boolean simulatedPhysicsStaffAvailable;
 
     private RuntimeSubLevelStaticService() {
     }
 
     public static void onSubLevelContainerReady(final Level level, final SubLevelContainer container) {
-        if (usesSimulatedPhysicsStaff()) {
-            return;
-        }
-
         if (!(level instanceof final ServerLevel serverLevel) || !(container instanceof final ServerSubLevelContainer serverContainer)) {
             return;
         }
 
         serverContainer.addObserver(new Observer(serverLevel));
         for (final ServerSubLevel subLevel : serverContainer.getAllSubLevels()) {
+            applyPendingState(subLevel);
             applyLockIfNeeded(subLevel);
         }
     }
@@ -50,6 +48,7 @@ public final class RuntimeSubLevelStaticService {
             }
         }
         LOCKS.clear();
+        PENDING_STATES.clear();
     }
 
     public static boolean isStatic(final ResourceKey<Level> dimension, final UUID uuid) {
@@ -57,11 +56,57 @@ public final class RuntimeSubLevelStaticService {
     }
 
     public static boolean isStatic(final MinecraftServer server, final ResourceKey<Level> dimension, final UUID uuid) {
+        final Boolean pending = pendingStates(dimension).get(uuid);
+        if (pending != null) {
+            return pending;
+        }
         if (usesSimulatedPhysicsStaff()) {
             return SimulatedPhysicsStaffLockCompat.isStatic(server, dimension, uuid);
         }
 
         return isStatic(dimension, uuid);
+    }
+
+    /**
+     * Applies an explicit target state. Stored entries keep a runtime-only intent which is
+     * consumed when the body next loads.
+     */
+    public static SubLevelOperationResult setStatic(final MinecraftServer server,
+                                                    final ResourceKey<Level> dimension,
+                                                    final UUID uuid,
+                                                    final boolean desiredStatic) {
+        final ServerLevel level = server.getLevel(dimension);
+        final ServerSubLevel loaded = level == null ? null : loadedSubLevel(level, uuid);
+        if (loaded != null) {
+            final SubLevelOperationResult result = desiredStatic
+                    ? ensureStatic(loaded)
+                    : ensureNonStatic(loaded);
+            if (result.success()) {
+                pendingStates(dimension).remove(uuid);
+            }
+            return result;
+        }
+
+        if (usesSimulatedPhysicsStaff()) {
+            pendingStates(dimension).put(uuid, desiredStatic);
+            return SubLevelOperationResult.success(
+                    "Queued sub-level " + uuid + " to become " + (desiredStatic ? "static." : "non-static."),
+                    1
+            );
+        }
+
+        final Map<UUID, Lock> locks = locks(dimension);
+        final Lock existing = locks.remove(uuid);
+        if (existing != null) {
+            existing.remove();
+        }
+        if (desiredStatic) {
+            locks.put(uuid, new Lock(uuid, null));
+        }
+        return SubLevelOperationResult.success(
+                "Set stored sub-level " + uuid + " to " + (desiredStatic ? "static." : "non-static."),
+                1
+        );
     }
 
     public static SubLevelOperationResult toggleStatic(final ServerLevel level, final UUID uuid) {
@@ -138,6 +183,23 @@ public final class RuntimeSubLevelStaticService {
         locks.put(serverSubLevel.getUniqueId(), new Lock(serverSubLevel.getUniqueId(), addConstraint(serverSubLevel.getLevel(), serverSubLevel)));
     }
 
+    private static void applyPendingState(final SubLevel subLevel) {
+        if (!(subLevel instanceof final ServerSubLevel serverSubLevel) || serverSubLevel.isRemoved()) {
+            return;
+        }
+        final ResourceKey<Level> dimension = serverSubLevel.getLevel().dimension();
+        final Boolean desired = pendingStates(dimension).get(serverSubLevel.getUniqueId());
+        if (desired == null) {
+            return;
+        }
+        final SubLevelOperationResult result = desired
+                ? ensureStatic(serverSubLevel)
+                : ensureNonStatic(serverSubLevel);
+        if (result.success()) {
+            pendingStates(dimension).remove(serverSubLevel.getUniqueId());
+        }
+    }
+
     public static void relockIfStatic(final ServerSubLevel subLevel) {
         if (usesSimulatedPhysicsStaff()) {
             SimulatedPhysicsStaffLockCompat.relockIfStatic(subLevel);
@@ -193,6 +255,10 @@ public final class RuntimeSubLevelStaticService {
         return LOCKS.computeIfAbsent(dimension, ignored -> new LinkedHashMap<>());
     }
 
+    private static Map<UUID, Boolean> pendingStates(final ResourceKey<Level> dimension) {
+        return PENDING_STATES.computeIfAbsent(dimension, ignored -> new LinkedHashMap<>());
+    }
+
     private static boolean usesSimulatedPhysicsStaff() {
         if (!ModList.get().isLoaded("simulated")) {
             return false;
@@ -228,6 +294,7 @@ public final class RuntimeSubLevelStaticService {
     private record Observer(ServerLevel level) implements SubLevelObserver {
         @Override
         public void onSubLevelAdded(final SubLevel subLevel) {
+            RuntimeSubLevelStaticService.applyPendingState(subLevel);
             RuntimeSubLevelStaticService.applyLockIfNeeded(subLevel);
         }
 
@@ -235,6 +302,7 @@ public final class RuntimeSubLevelStaticService {
         public void onSubLevelRemoved(final SubLevel subLevel, final SubLevelRemovalReason reason) {
             if (reason == SubLevelRemovalReason.REMOVED) {
                 RuntimeSubLevelStaticService.removeLock(subLevel);
+                pendingStates(this.level.dimension()).remove(subLevel.getUniqueId());
             }
         }
     }
