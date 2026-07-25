@@ -1,0 +1,29 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " E ",
+    " T ",
+    " S "
+  ],
+  "key": {
+    "E": {
+      "item": "minecraft:ender_eye"
+    },
+    "T": {
+      "item": "create:transmitter"
+    },
+    "S": {
+      "item": "sable_schematic_api:projector_screen"
+    }
+  },
+  "result": {
+    "id": "sable_schematic_api:projector_screen_locator",
+    "count": 1
+  }
+}

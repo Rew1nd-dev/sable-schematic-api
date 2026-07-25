@@ -1,0 +1,26 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "A A",
+    " C ",
+    " C "
+  ],
+  "key": {
+    "A": {
+      "item": "create:andesite_scaffolding"
+    },
+    "C": {
+      "item": "create:andesite_casing"
+    }
+  },
+  "result": {
+    "id": "sable_schematic_api:projector_base",
+    "count": 1
+  }
+}

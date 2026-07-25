@@ -150,7 +150,7 @@
 		},
 		"gui": {
 			"rotation": [30, -135, 0],
-			"translation": [-0.25, -2, 0],
+			"translation": [-0.75, -2, 0],
 			"scale": [0.8, 0.8, 0.8]
 		},
 		"head": {

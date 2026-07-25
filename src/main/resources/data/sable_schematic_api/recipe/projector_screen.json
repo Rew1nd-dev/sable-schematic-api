@@ -1,0 +1,29 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "TTT",
+    "BGB",
+    "TTT"
+  ],
+  "key": {
+    "T": {
+      "item": "minecraft:cyan_terracotta"
+    },
+    "B": {
+      "item": "create:brass_sheet"
+    },
+    "G": {
+      "item": "create:framed_glass_pane"
+    }
+  },
+  "result": {
+    "id": "sable_schematic_api:projector_screen",
+    "count": 8
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PPP",
+    "GRG",
+    "PPP"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "G": {
+      "item": "create:golden_sheet"
+    },
+    "R": {
+      "item": "create:polished_rose_quartz"
+    }
+  },
+  "result": {
+    "id": "sable_schematic_api:film",
+    "count": 8
+  }
+}

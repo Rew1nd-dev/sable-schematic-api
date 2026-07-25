@@ -1,0 +1,38 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "TET",
+    "APA",
+    "BLB"
+  ],
+  "key": {
+    "T": {
+      "item": "create:crafter_slot_cover"
+    },
+    "E": {
+      "item": "create:electron_tube"
+    },
+    "A": {
+      "item": "create:brass_casing"
+    },
+    "P": {
+      "item": "create:precision_mechanism"
+    },
+    "B": {
+      "item": "create:brass_sheet"
+    },
+    "L": {
+      "item": "create:clipboard"
+    }
+  },
+  "result": {
+    "id": "sable_schematic_api:film_printer",
+    "count": 1
+  }
+}
