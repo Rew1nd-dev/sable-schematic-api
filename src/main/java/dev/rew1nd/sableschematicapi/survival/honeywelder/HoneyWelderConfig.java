@@ -1,18 +1,14 @@
 package dev.rew1nd.sableschematicapi.survival.honeywelder;
 
+import dev.rew1nd.sableschematicapi.survival.SableServerConfig;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** Server-side fuel balance for the honey welder. */
 public final class HoneyWelderConfig {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
-
-    public static final ModConfigSpec.IntValue CAPACITY = BUILDER
-            .comment("Maximum fuel stored by one honey welder.")
-            .defineInRange("honeyWelder.capacity", 1000, 1, 1_000_000);
-    public static final ModConfigSpec.IntValue FUEL_PER_BOTTLE = BUILDER
-            .comment("Fuel granted by one vanilla honey bottle.")
-            .defineInRange("honeyWelder.fuelPerBottle", 250, 1, 1_000_000);
-    public static final ModConfigSpec SPEC = BUILDER.build();
+    public static final ModConfigSpec.IntValue CAPACITY =
+            SableServerConfig.HONEY_WELDER_CAPACITY;
+    public static final ModConfigSpec.IntValue FUEL_PER_BOTTLE =
+            SableServerConfig.HONEY_WELDER_FUEL_PER_BOTTLE;
 
     private HoneyWelderConfig() {
     }

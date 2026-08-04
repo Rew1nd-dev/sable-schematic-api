@@ -17,6 +17,7 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Clearable;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -32,7 +33,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class BlueprintCannonBlockEntity extends BlockEntity {
+public class BlueprintCannonBlockEntity extends BlockEntity implements Clearable {
     public static final int BLUEPRINT_SLOT = 0;
     public static final int CLIPBOARD_SLOT = 1;
     public static final int SLOT_COUNT = 2;
@@ -109,6 +110,13 @@ public class BlueprintCannonBlockEntity extends BlockEntity {
 
     public BlueprintCannonBlockEntity(final BlockPos pos, final BlockState state) {
         super(SableSchematicApiBlockEntities.BLUEPRINT_CANNON.get(), pos, state);
+    }
+
+    @Override
+    public void clearContent() {
+        for (int slot = 0; slot < this.inventory.getSlots(); slot++) {
+            this.inventory.setStackInSlot(slot, ItemStack.EMPTY);
+        }
     }
 
     public static void serverTick(final Level level,

@@ -12,7 +12,7 @@ import dev.ryanhcode.sable.companion.math.Pose3d;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -23,6 +23,7 @@ import org.joml.Matrix3d;
 import org.joml.Quaterniond;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,7 +74,7 @@ public final class ProjectorAdmission implements AutoCloseable {
 
     public static ProjectorAdmission begin(final ServerLevel level,
                                            final BlockPos projectorPos,
-                                           final ServerPlayer player,
+                                           @Nullable final Entity rayEntity,
                                            final FilmState film) throws ProjectorAdmissionException {
         final ProjectorAttachment projector = ProjectorAttachment.capture(level, projectorPos);
         final Vector3d lens = lensPosition(level, projector, projectorPos);
@@ -85,7 +86,7 @@ public final class ProjectorAdmission implements AutoCloseable {
                 forward.z * ProjectorConfig.MAX_RAY_DISTANCE.get()
         );
         final BlockHitResult hit = level.clip(new ClipContext(
-                rayStart, rayEnd, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player
+                rayStart, rayEnd, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, rayEntity
         ));
         if (hit.getType() != HitResult.Type.BLOCK) {
             throw new ProjectorAdmissionException("sable_schematic_api.projector.status.no_screen");

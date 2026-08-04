@@ -46,13 +46,13 @@ public final class FilmBlueprintFreezer {
         }
         final String objectSha256 = BlueprintPayloads.hashString(BlueprintPayloads.sha256(objectData));
         BlueprintObjectStore.storeIfAbsent(server, objectSha256, objectData);
-        SableSchematicApi.LOGGER.info(
-                "Frozen blueprint film object {} from {}/{} at {} degrees",
-                objectSha256.substring(0, 12),
-                alias.ownerId(),
-                alias.blueprintName(),
-                manuscript.rotation().degrees()
-        );
+//        SableSchematicApi.LOGGER.info(
+//                "Frozen blueprint film object {} from {}/{} at {} degrees",
+//                objectSha256.substring(0, 12),
+//                alias.ownerId(),
+//                alias.blueprintName(),
+//                manuscript.rotation().degrees()
+//        );
 
         final FilmSnapshot snapshot = new FilmSnapshot(
                 alias.blueprintName(),

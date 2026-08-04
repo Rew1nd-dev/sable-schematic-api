@@ -12,13 +12,10 @@ import dev.rew1nd.sableschematicapi.network.SableSchematicApiPackets;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlockEntities;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiBlocks;
 import dev.rew1nd.sableschematicapi.survival.SableSchematicApiDataComponents;
-import dev.rew1nd.sableschematicapi.survival.camera.CameraConfig;
+import dev.rew1nd.sableschematicapi.survival.SableServerConfig;
 import dev.rew1nd.sableschematicapi.survival.camera.CameraCaptureService;
 import dev.rew1nd.sableschematicapi.survival.manuscript.ManuscriptServerSessions;
-import dev.rew1nd.sableschematicapi.survival.filmprinter.FilmPrinterConfig;
-import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderConfig;
 import dev.rew1nd.sableschematicapi.survival.honeywelder.HoneyWelderServerSessions;
-import dev.rew1nd.sableschematicapi.survival.projector.ProjectorConfig;
 import dev.rew1nd.sableschematicapi.survival.projector.ProjectorForceLoadTickets;
 import dev.rew1nd.sableschematicapi.survival.projector.ProjectorTerrainScanScheduler;
 import dev.rew1nd.sableschematicapi.survival.projector.ProjectorRevealGroups;
@@ -46,21 +43,9 @@ public final class SableSchematicApi {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public SableSchematicApi(final IEventBus modEventBus) {
-        ModLoadingContext.get().getActiveContainer().registerConfig(ModConfig.Type.SERVER, CameraConfig.SPEC);
         ModLoadingContext.get().getActiveContainer().registerConfig(
                 ModConfig.Type.SERVER,
-                FilmPrinterConfig.SPEC,
-                "sable-schematic-api-film-printer.toml"
-        );
-        ModLoadingContext.get().getActiveContainer().registerConfig(
-                ModConfig.Type.SERVER,
-                ProjectorConfig.SPEC,
-                "sable-schematic-api-projector.toml"
-        );
-        ModLoadingContext.get().getActiveContainer().registerConfig(
-                ModConfig.Type.SERVER,
-                HoneyWelderConfig.SPEC,
-                "sable-schematic-api-honey-welder.toml"
+                SableServerConfig.SPEC
         );
         SableSchematicApiBlocks.register(modEventBus);
         SableSchematicApiBlockEntities.register(modEventBus);

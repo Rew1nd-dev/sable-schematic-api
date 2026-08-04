@@ -1,10 +1,12 @@
-# Sable Schematic API
+# Sable Photomancy
 
 Language: English | [简体中文](README.zh-CN.md)
 
-Sable Schematic API is an experimental external blueprint / schematic mod for [Sable](https://github.com/ryanhcode/sable) sub-levels. It keeps blueprint save/load logic, reference remapping, compatibility sidecars, and a lightweight in-game blueprint tool in a separate mod while the API boundary is being tested. Once the API is stable enough, suitable pieces can be prepared for upstreaming back into Sable.
+**Capture form. Preserve memory. Project reality.**
 
-Version `0.1.0` is still a draft API. It is suitable for compatibility testing and controlled use, but it does not promise long-term binary stability yet.
+Sable Photomancy is a standalone blueprint mod built around capturing structures with a camera, preserving them on film, and projecting their blueprints back into the world. It also provides blueprint editing, material handling, placement tools, and compatibility hooks for Sable sub-levels and supported contraptions.
+
+The public API is still evolving and does not promise long-term binary stability yet.
 
 ## Features
 
@@ -128,6 +130,6 @@ Developer documentation is currently maintained in source Javadocs to keep it cl
 
 Unless otherwise stated, this repository's source code is licensed under the [MIT License](LICENSE.md).
 
-You may use, copy, modify, distribute, sublicense, or include this mod in modpacks under the terms of the MIT License. Please do not impersonate Sable, Sable Schematic API, or an official compatibility build.
+You may use, copy, modify, distribute, sublicense, or include this mod in modpacks under the terms of the MIT License. Please do not impersonate Sable, Sable Photomancy, or an official compatibility build.
 
 Third-party dependencies and jars placed under `libs/` are not covered by this project's source license. Follow their own licenses and distribution terms.

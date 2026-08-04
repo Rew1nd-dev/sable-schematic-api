@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "sable_schematic_api:blueprint_cannon",
+    "sable_schematic_api:film_printer",
+    "sable_schematic_api:projector",
+    "sable_schematic_api:projector_base"
+  ]
+}

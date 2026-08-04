@@ -1,10 +1,12 @@
-# Sable Schematic API
+# Sable Photomancy
 
 语言：[English](README.md) | 简体中文
 
-Sable Schematic API 是一个面向 [Sable](https://github.com/ryanhcode/sable) sub-level 的 blueprint / schematic 外置实验 mod。它把蓝图保存、加载、引用 remap、兼容层 sidecar 和一个轻量的游戏内蓝图工具放在独立 mod 中验证，等 API 边界稳定后，再把适合进入核心的部分整理回 Sable 上游。
+**Capture form. Preserve memory. Project reality.**
 
-当前版本仍是 `0.1.0` 草案 API：适合兼容性验证和小范围使用，但不承诺长期二进制稳定。
+Sable Photomancy 是一个围绕“用相机捕获建筑、以胶卷保存形态、再将蓝图投影回世界”构建的独立蓝图模组。它同时提供蓝图编辑、材料处理、放置工具，以及面向 Sable 子世界和受支持机械结构的兼容扩展。
+
+当前公开 API 仍在演进，暂不承诺长期二进制兼容性。
 
 ## 功能
 
@@ -117,6 +119,6 @@ dev.rew1nd.sableschematicapi.api.blueprint
 
 除非另有说明，本仓库源码采用 [MIT License](LICENSE.md)。
 
-你可以在 MIT License 条款下使用、复制、修改、分发、再许可本项目源码，或将本 mod 打包到 modpack 中。请不要冒充 Sable、Sable Schematic API 或其官方兼容版本。
+你可以在 MIT License 条款下使用、复制、修改、分发、再许可本项目源码，或将本 mod 打包到 modpack 中。请不要冒充 Sable、Sable Photomancy 或其官方兼容版本。
 
 第三方依赖和本地 `libs/` 中的 jar 不属于本项目源码许可覆盖范围，请遵循它们各自的许可证和发布条款。

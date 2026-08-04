@@ -13,6 +13,8 @@ import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Clearable;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -21,7 +23,7 @@ import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import org.jetbrains.annotations.Nullable;
 
-public final class ProjectorBlockEntity extends BlockEntity {
+public final class ProjectorBlockEntity extends BlockEntity implements Clearable {
     private static final String KEY_INVENTORY = "inventory";
     private static final String KEY_PHASE = "phase";
     private static final String KEY_STATUS = "status";
@@ -105,6 +107,16 @@ public final class ProjectorBlockEntity extends BlockEntity {
         return this.inventory;
     }
 
+    /**
+     * Sable assembly saves this block entity first, then clears the source before
+     * loading the saved tag at the destination. Clearing the source prevents its
+     * removal hook from dropping a second copy of the film.
+     */
+    @Override
+    public void clearContent() {
+        this.inventory.setStackInSlot(0, ItemStack.EMPTY);
+    }
+
     public ProjectorPhase phase() {
         return this.phase;
     }
@@ -145,7 +157,13 @@ public final class ProjectorBlockEntity extends BlockEntity {
         this.begin(player);
     }
 
-    private void begin(final ServerPlayer player) {
+    public void activateFromRedstone() {
+        if (!this.phase.busy()) {
+            this.begin(null);
+        }
+    }
+
+    private void begin(@Nullable final Entity rayEntity) {
         if (!(this.level instanceof final ServerLevel serverLevel)) {
             return;
         }
@@ -161,7 +179,7 @@ public final class ProjectorBlockEntity extends BlockEntity {
         this.total = 0;
         this.markDirtyAndSync();
         try {
-            this.admission = ProjectorAdmission.begin(serverLevel, this.worldPosition, player, film);
+            this.admission = ProjectorAdmission.begin(serverLevel, this.worldPosition, rayEntity, film);
             this.bodyCount = this.admission.blueprint().subLevels().size();
             this.total = this.admission.totalChecks();
             this.phase = ProjectorPhase.SCANNING_TERRAIN;

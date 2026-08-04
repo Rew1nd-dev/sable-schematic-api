@@ -31,7 +31,7 @@
   "sable_schematic_api.film_printer.ui.refund_confirm": "终止当前任务并退款？",
   "sable_schematic_api.film_printer.ui.confirm": "确认",
   "sable_schematic_api.film_printer.ui.cancel": "取消",
-  "itemGroup.sable_schematic_api.main": "Sable 蓝图",
+  "itemGroup.sable_schematic_api.main": "Sable Photomancy",
   "item.sable_schematic_api.blueprint_tool": "Sable 蓝图工具",
   "item.sable_schematic_api.camera": "照相机",
   "item.sable_schematic_api.survival_blueprint": "生存蓝图",
@@ -84,7 +84,7 @@
   "tooltip.sable_schematic_api.blueprint_tool.line3": "手持按 %s：打开工具模式。",
   "tooltip.sable_schematic_api.blueprint_tool.line4": "删除模式：左键删除子世界。",
   "tooltip.sable_schematic_api.blueprint_tool.line5": "保存/加载需要 OP 权限。",
-  "key.categories.sable_schematic_api": "Sable 蓝图",
+  "key.categories.sable_schematic_api": "Sable Photomancy",
   "key.sable_schematic_api.blueprint_tool.open": "打开蓝图工具",
   "key.sable_schematic_api.camera.open": "打开照相机",
   "sable_schematic_api.blueprint_tool.hud": "模式:%s | %s | %s | %s",
@@ -281,5 +281,5 @@
   "gui.sable_schematic_api.physics_manager.confirm_body_connected": "永久删除 %s · %s [%s]？这可能断开连接结构，且无法撤销。",
   "gui.sable_schematic_api.physics_manager.confirm": "确认删除",
   "gui.sable_schematic_api.physics_manager.cancel": "取消",
-  "modmenu.nameTranslation.sable_schematic_api": "Sable 蓝图"
+  "modmenu.nameTranslation.sable_schematic_api": "Sable Photomancy"
 }

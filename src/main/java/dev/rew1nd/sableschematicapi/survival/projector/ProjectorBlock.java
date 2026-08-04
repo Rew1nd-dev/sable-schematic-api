@@ -22,17 +22,21 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
 
 public final class ProjectorBlock extends BaseEntityBlock implements BlockUIMenuType.BlockUI {
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+    public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
     public static final MapCodec<ProjectorBlock> CODEC = simpleCodec(ProjectorBlock::new);
 
     public ProjectorBlock(final Properties properties) {
         super(properties);
-        this.registerDefaultState(this.defaultBlockState().setValue(FACING, net.minecraft.core.Direction.NORTH));
+        this.registerDefaultState(this.defaultBlockState()
+                .setValue(FACING, net.minecraft.core.Direction.NORTH)
+                .setValue(POWERED, false));
     }
 
     @Override
@@ -42,7 +46,7 @@ public final class ProjectorBlock extends BaseEntityBlock implements BlockUIMenu
 
     @Override
     protected void createBlockStateDefinition(final StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
+        builder.add(FACING, POWERED);
     }
 
     @Override
@@ -83,6 +87,27 @@ public final class ProjectorBlock extends BaseEntityBlock implements BlockUIMenu
         return player instanceof ServerPlayer serverPlayer && BlockUIMenuType.openUI(serverPlayer, pos)
                 ? InteractionResult.CONSUME
                 : InteractionResult.PASS;
+    }
+
+    @Override
+    protected void neighborChanged(final BlockState state,
+                                   final Level level,
+                                   final BlockPos pos,
+                                   final Block neighborBlock,
+                                   final BlockPos neighborPos,
+                                   final boolean movedByPiston) {
+        super.neighborChanged(state, level, pos, neighborBlock, neighborPos, movedByPiston);
+        if (level.isClientSide()) {
+            return;
+        }
+        final boolean powered = level.hasNeighborSignal(pos);
+        if (powered == state.getValue(POWERED)) {
+            return;
+        }
+        level.setBlock(pos, state.setValue(POWERED, powered), Block.UPDATE_CLIENTS);
+        if (powered && level.getBlockEntity(pos) instanceof final ProjectorBlockEntity projector) {
+            projector.activateFromRedstone();
+        }
     }
 
     @Override

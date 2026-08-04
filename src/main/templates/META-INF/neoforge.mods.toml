@@ -39,14 +39,14 @@ displayURL="https://github.com/Rew1nd-dev/sable-schematic-api" #optional
 logoFile="sable_schematic_api.png" #optional
 
 # A text field displayed in the mod UI
-credits="Sable blueprint API draft extracted from local Sable experiments." #optional
+credits="" #optional
 
 # The authors of the mod, displayed in the mod UI (optional)
 authors="Rew1nd"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Experimental blueprint and schematic API for Sable sub-levels, with remapping hooks and an in-game blueprint tool.
+Capture form. Preserve memory. Project reality.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.

@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Clearable;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -12,7 +13,7 @@ import net.neoforged.neoforge.items.ItemStackHandler;
 
 import java.io.IOException;
 
-public class BlueprintTableBlockEntity extends BlockEntity {
+public class BlueprintTableBlockEntity extends BlockEntity implements Clearable {
     public static final int BLUEPRINT_SLOT = 0;
     public static final int SLOT_COUNT = 1;
 
@@ -41,6 +42,11 @@ public class BlueprintTableBlockEntity extends BlockEntity {
 
     public ItemStackHandler inventory() {
         return this.inventory;
+    }
+
+    @Override
+    public void clearContent() {
+        this.inventory.setStackInSlot(BLUEPRINT_SLOT, ItemStack.EMPTY);
     }
 
     public ItemStack insertBlueprint(final ItemStack stack) {

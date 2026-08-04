@@ -16,7 +16,7 @@ public final class SableSchematicApiCreativeTabs {
             "main",
             () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.sable_schematic_api.main"))
-                    .icon(() -> new ItemStack(SableSchematicApiItems.BLUEPRINT_TOOL.get()))
+                    .icon(() -> new ItemStack(SableSchematicApiItems.CAMERA.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(SableSchematicApiItems.BLUEPRINT_TOOL.get());
                         output.accept(SableSchematicApiItems.PHYSICS_MANAGER.get());
@@ -24,9 +24,6 @@ public final class SableSchematicApiCreativeTabs {
                         output.accept(SableSchematicApiItems.HONEY_WELDER.get());
                         output.accept(SableSchematicApiItems.BLUEPRINT_MANUSCRIPT.get());
                         output.accept(SableSchematicApiItems.FILM.get());
-//                        output.accept(SableSchematicApiItems.SURVIVAL_BLUEPRINT.get());
-//                        output.accept(SableSchematicApiItems.BLUEPRINT_CANNON.get());
-//                        output.accept(SableSchematicApiItems.BLUEPRINT_TABLE.get());
                         output.accept(SableSchematicApiItems.FILM_PRINTER.get());
                         output.accept(SableSchematicApiItems.PROJECTOR.get());
                         output.accept(SableSchematicApiItems.PROJECTOR_BASE.get());
