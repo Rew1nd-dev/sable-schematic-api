@@ -1,12 +1,15 @@
 package dev.rew1nd.sableschematicapi.compat.create;
 
 import com.simibubi.create.AllEntityTypes;
+import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
 import dev.rew1nd.sableschematicapi.SableSchematicApi;
 import dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession;
 import dev.rew1nd.sableschematicapi.api.blueprint.survival.operation.BlueprintPostProcessOperationParser;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 
 import java.util.ArrayList;
@@ -14,6 +17,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Parses contraption entities from blueprint entity data.
@@ -27,6 +31,8 @@ public final class ContraptionPlaceParser implements BlueprintPostProcessOperati
             SableSchematicApi.id("create/contraption");
 
     private static final Set<EntityType<?>> CONTRAPTION_TYPES;
+    private static final ConcurrentHashMap<EntityType<?>, Boolean> CONTRAPTION_TYPE_CACHE =
+            new ConcurrentHashMap<>();
 
     static {
         final Set<EntityType<?>> set = new HashSet<>();
@@ -54,7 +60,9 @@ public final class ContraptionPlaceParser implements BlueprintPostProcessOperati
                 final EntityType<?> type = EntityType.byString(
                         entityData.tag().getString("id")).orElse(null);
 
-                if (type != null && CONTRAPTION_TYPES.contains(type)) {
+                if (type != null
+                        && hasSerializedBlocks(entityData.tag())
+                        && isContraptionType(session, type)) {
                     operations.add(new ContraptionPlaceOperation(
                             entry.id(),
                             entityIndex,
@@ -67,5 +75,34 @@ public final class ContraptionPlaceParser implements BlueprintPostProcessOperati
         }
 
         return operations;
+    }
+
+    private static boolean hasSerializedBlocks(final CompoundTag entityTag) {
+        if (!entityTag.contains("Contraption", Tag.TAG_COMPOUND)) {
+            return false;
+        }
+        final CompoundTag contraption = entityTag.getCompound("Contraption");
+        if (!contraption.contains("Blocks", Tag.TAG_COMPOUND)) {
+            return false;
+        }
+        final CompoundTag blocks = contraption.getCompound("Blocks");
+        return blocks.contains("Palette", Tag.TAG_LIST)
+                && blocks.getList("Palette", Tag.TAG_COMPOUND).getElementType() == Tag.TAG_COMPOUND
+                && blocks.contains("BlockList", Tag.TAG_LIST)
+                && blocks.getList("BlockList", Tag.TAG_COMPOUND).getElementType() == Tag.TAG_COMPOUND;
+    }
+
+    private static boolean isContraptionType(final BlueprintPlaceSession session, final EntityType<?> type) {
+        if (CONTRAPTION_TYPES.contains(type)) {
+            return true;
+        }
+        return CONTRAPTION_TYPE_CACHE.computeIfAbsent(type, candidate -> {
+            try {
+                final Entity probe = candidate.create(session.level());
+                return probe instanceof AbstractContraptionEntity;
+            } catch (final RuntimeException ignored) {
+                return false;
+            }
+        });
     }
 }
