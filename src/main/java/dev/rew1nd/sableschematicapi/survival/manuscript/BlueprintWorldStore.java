@@ -33,8 +33,6 @@ public final class BlueprintWorldStore {
     private static final String UPLOAD = "upload";
     private static final String STAGING = ".staging";
     private static final String EXTENSION = ".nbt";
-    private static final long MAX_DECODE_BYTES = 256L * 1024L * 1024L;
-
     private BlueprintWorldStore() {
     }
 
@@ -95,10 +93,7 @@ public final class BlueprintWorldStore {
 
     public static CompoundTag readRoot(final Path path) throws IOException {
         ensureBoundedFile(path);
-        final long decodeLimit = Math.min(
-                MAX_DECODE_BYTES,
-                Math.max(16L * 1024L * 1024L, (long) CameraConfig.MAX_MANUSCRIPT_UPLOAD_BYTES.get() * 8L)
-        );
+        final long decodeLimit = Math.max(16L * 1024L * 1024L, (long) CameraConfig.MAX_MANUSCRIPT_UPLOAD_BYTES.get() * 8L);
         try (InputStream input = new BufferedInputStream(Files.newInputStream(path, StandardOpenOption.READ))) {
             final CompoundTag root = NbtIo.readCompressed(input, NbtAccounter.create(decodeLimit));
             if (root == null) {

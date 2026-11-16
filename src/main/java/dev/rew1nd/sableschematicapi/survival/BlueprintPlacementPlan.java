@@ -84,6 +84,28 @@ public final class BlueprintPlacementPlan {
         return anchoredToCanonicalBoundsCenter(subLevels, layout, anchor.targetCenter());
     }
 
+    /**
+     * Script-friendly basis pose with unit scale and zero rotation point.
+     * Coordinates locate the basis origin, not the blueprint's bottom or bounds center.
+     * Rotation is in degrees about positive Y, matching Quaterniond.rotationY.
+     */
+    public static BlueprintPlacementPlan forPose(final SableBlueprint blueprint,
+                                                  final double x,
+                                                  final double y,
+                                                  final double z,
+                                                  final double rotationYDegrees) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
+                || !Double.isFinite(rotationYDegrees)) {
+            throw new IllegalArgumentException("Placement coordinates and rotation must be finite");
+        }
+        return forPose(blueprint, new Pose3d(
+                new Vector3d(x, y, z),
+                new Quaterniond().rotationY(Math.toRadians(rotationYDegrees)),
+                new Vector3d(),
+                new Vector3d(1.0, 1.0, 1.0)
+        ));
+    }
+
     public static BlueprintPlacementPlan forPose(final SableBlueprint blueprint, final Pose3d basisPose) {
         final Pose3d placementBasisPose = placementPose(basisPose);
         final List<SableBlueprint.SubLevelData> subLevels = blueprint.subLevels();
